@@ -121,15 +121,17 @@ function jobTotal(event) {
   return (Number(event.amount) || 0) * eventDayCount(event);
 }
 
-function overlapDayCount(event, start, end) {
-  const from = event.startDate > start ? event.startDate : start;
-  const to = event.endDate < end ? event.endDate : end;
-  if (to < from) return 0;
-  return dayCount(from, to);
+function jobOverlapsRange(event, start, end) {
+  return event.startDate <= end && event.endDate >= start;
 }
 
+function jobStartsInRange(event, start, end) {
+  return event.startDate >= start && event.startDate <= end;
+}
+
+/** Cobro completo del trabajo si cae en el período; no se parte por días del mes. */
 function amountInRange(event, start, end) {
-  return (Number(event.amount) || 0) * overlapDayCount(event, start, end);
+  return jobOverlapsRange(event, start, end) ? jobTotal(event) : 0;
 }
 
 function updateAmountHint() {
@@ -418,7 +420,7 @@ function reportRange() {
 
 function summarizeRange(start, end) {
   const events = state.events
-    .filter((e) => e.startDate <= end && e.endDate >= start)
+    .filter((e) => jobOverlapsRange(e, start, end))
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
   const byCompany = {};
   for (const event of events) {
@@ -478,15 +480,17 @@ function monthlyEarnings(year) {
     const anchor = new Date(year, month, 1);
     const start = toISODate(startOfMonth(anchor));
     const end = toISODate(endOfMonth(anchor));
-    const summary = summarizeRange(start, end);
+    const started = state.events.filter((event) => jobStartsInRange(event, start, end));
+    const paid = started.filter((event) => event.paymentStatus === "paid");
+    const pending = started.filter((event) => event.paymentStatus === "pending");
     rows.push({
       start,
       end,
       label: formatDate(anchor, { month: "long" }),
-      total: summary.total,
-      jobCount: summary.jobCount,
-      paid: summary.paid.amount,
-      pending: summary.pending.amount,
+      total: started.reduce((sum, event) => sum + jobTotal(event), 0),
+      jobCount: started.length,
+      paid: paid.reduce((sum, event) => sum + jobTotal(event), 0),
+      pending: pending.reduce((sum, event) => sum + jobTotal(event), 0),
     });
   }
   return rows;
@@ -565,8 +569,8 @@ function companyInvoice(companyId) {
       date: formatJobDate(event),
       project: eventTitle(event),
       status: event.paymentStatus === "paid" ? "Pagado" : "Pendiente",
-      amount: money(amountInRange(event, summary.start, summary.end)),
-      amountRaw: amountInRange(event, summary.start, summary.end),
+      amount: money(jobTotal(event)),
+      amountRaw: jobTotal(event),
     })),
     total: money(company.amount),
     fileName: `Reporte-${(company.name || "cliente").replace(/[^\wáéíóúñÁÉÍÓÚÑ]+/gi, "-")}.pdf`,
@@ -694,7 +698,7 @@ function renderReports() {
     monthsBox.classList.remove("hidden");
     monthsBox.innerHTML = `
       <h3>Ganado por mes</h3>
-      <p class="muted">Monto diario × días de cada mes. Toca un mes para ver el detalle.</p>
+      <p class="muted">El cobro completo se cuenta en el mes en que empieza el trabajo. Toca un mes para ver el detalle.</p>
       ${months.map((m) => `
         <button type="button" class="month-earn" data-open-month="${m.start}">
           <span>
@@ -727,7 +731,7 @@ function renderReports() {
           <div class="job-line">
             <span class="date">${escapeHtml(formatJobDate(event))}</span>
             <span>${escapeHtml(eventTitle(event))}</span>
-            <strong>${money(amountInRange(event, summary.start, summary.end))}</strong>
+            <strong>${money(jobTotal(event))}</strong>
           </div>
         `).join("")}
         <div class="total-line"><span>Total</span><span>${money(c.amount)}</span></div>
@@ -749,7 +753,7 @@ function renderReports() {
     <h3>Trabajos del período</h3>
     ${summary.events.map((event) => {
       const company = companyById(event.companyId);
-      return `<div class="breakdown-row"><div><strong>${escapeHtml(eventTitle(event))}</strong><div class="muted">${event.startDate}${event.startDate !== event.endDate ? " – " + event.endDate : ""} · ${escapeHtml(company?.name || "")}</div></div><strong>${money(amountInRange(event, summary.start, summary.end))}</strong></div>`;
+      return `<div class="breakdown-row"><div><strong>${escapeHtml(eventTitle(event))}</strong><div class="muted">${event.startDate}${event.startDate !== event.endDate ? " – " + event.endDate : ""} · ${escapeHtml(company?.name || "")}</div></div><strong>${money(jobTotal(event))}</strong></div>`;
     }).join("") || `<p class="muted">Ajusta el rango para ver resultados.</p>`}
   `;
 }
@@ -758,7 +762,7 @@ function reportHTML(summary) {
   const rows = summary.events.map((event) => {
     const company = companyById(event.companyId);
     const fecha = event.startDate === event.endDate ? event.startDate : `${event.startDate} – ${event.endDate}`;
-    return `<tr><td>${fecha}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventTitle(event))}</td><td>${money(amountInRange(event, summary.start, summary.end))}</td></tr>`;
+    return `<tr><td>${fecha}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventTitle(event))}</td><td>${money(jobTotal(event))}</td></tr>`;
   }).join("");
   const year = state.report.month.getFullYear();
   const months = state.report.kind === "yearly"

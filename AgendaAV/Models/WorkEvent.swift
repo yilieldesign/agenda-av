@@ -43,8 +43,9 @@ final class WorkEvent {
         return calendar.inclusiveDayCount(from: start, to: end)
     }
 
+    /// Cobro completo si el trabajo cae en el período; no se parte por días del mes.
     func billedAmount(in range: ClosedRange<Date>, calendar: Calendar = .current) -> Decimal {
-        amount * Decimal(overlappingDayCount(in: range, calendar: calendar))
+        overlappingDayCount(in: range, calendar: calendar) > 0 ? billedAmount : 0
     }
 
     var listedServices: [String] {

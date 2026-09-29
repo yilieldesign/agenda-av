@@ -153,7 +153,7 @@ struct ReportsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Ganado por mes")
                 .font(.headline)
-            Text("Monto diario × días de cada mes. Toca un mes para ver el detalle.")
+            Text("El cobro completo se cuenta en el mes en que empieza el trabajo. Toca un mes para ver el detalle.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 

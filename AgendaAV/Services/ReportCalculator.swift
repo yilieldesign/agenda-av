@@ -119,16 +119,22 @@ enum ReportCalculator {
             components.month = month
             components.day = 1
             guard let start = calendar.date(from: components) else { return nil }
-            let monthPeriod = ReportPeriod(kind: .monthly, monthAnchor: start)
-            let summary = summarize(events: events, period: monthPeriod, calendar: calendar)
+            let monthStart = calendar.startOfDay(for: start)
+            let monthEnd = calendar.startOfDay(for: calendar.endOfMonth(for: start))
+            let started = events.filter {
+                let jobStart = calendar.startOfDay(for: $0.startDate)
+                return jobStart >= monthStart && jobStart <= monthEnd
+            }
+            let paid = started.filter { $0.paymentStatus == .paid }
+            let pending = started.filter { $0.paymentStatus == .pending }
             return MonthEarnings(
                 month: month,
                 start: start,
                 label: formatter.string(from: start).capitalized,
-                total: summary.totalAmount,
-                jobCount: summary.jobCount,
-                paid: summary.payment.paidAmount,
-                pending: summary.payment.pendingAmount
+                total: started.reduce(0) { $0 + $1.billedAmount },
+                jobCount: started.count,
+                paid: paid.reduce(0) { $0 + $1.billedAmount },
+                pending: pending.reduce(0) { $0 + $1.billedAmount }
             )
         }
     }
