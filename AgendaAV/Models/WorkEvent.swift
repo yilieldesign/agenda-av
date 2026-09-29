@@ -36,6 +36,17 @@ final class WorkEvent {
         amount * Decimal(occupiedDayCount)
     }
 
+    func overlappingDayCount(in range: ClosedRange<Date>, calendar: Calendar = .current) -> Int {
+        let start = max(calendar.startOfDay(for: startDate), calendar.startOfDay(for: range.lowerBound))
+        let end = min(calendar.startOfDay(for: endDate), calendar.startOfDay(for: range.upperBound))
+        guard start <= end else { return 0 }
+        return calendar.inclusiveDayCount(from: start, to: end)
+    }
+
+    func billedAmount(in range: ClosedRange<Date>, calendar: Calendar = .current) -> Decimal {
+        amount * Decimal(overlappingDayCount(in: range, calendar: calendar))
+    }
+
     var listedServices: [String] {
         get {
             if let data = servicesRaw.data(using: .utf8),

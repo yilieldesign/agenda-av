@@ -14,6 +14,16 @@ extension Calendar {
         return lastDay
     }
 
+    func startOfYear(for date: Date) -> Date {
+        let components = dateComponents([.year], from: date)
+        return self.date(from: components) ?? startOfDay(for: date)
+    }
+
+    func endOfYear(for date: Date) -> Date {
+        let year = component(.year, from: date)
+        return date(from: DateComponents(year: year, month: 12, day: 31)) ?? date
+    }
+
     func inclusiveDayCount(from start: Date, to end: Date) -> Int {
         let s = startOfDay(for: start)
         let e = startOfDay(for: end)

@@ -236,6 +236,28 @@ h1 { margin: 2px 0 0; font-size: 28px; }
   color: var(--muted);
 }
 .segmented button.active { background: white; color: var(--ink); box-shadow: var(--shadow); }
+.segmented.wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.month-earn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid #eef2f1;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.month-earn:last-child { border-bottom: 0; }
+.month-earn strong { text-transform: capitalize; }
 
 .tabbar {
   position: static;

@@ -121,6 +121,17 @@ function jobTotal(event) {
   return (Number(event.amount) || 0) * eventDayCount(event);
 }
 
+function overlapDayCount(event, start, end) {
+  const from = event.startDate > start ? event.startDate : start;
+  const to = event.endDate < end ? event.endDate : end;
+  if (to < from) return 0;
+  return dayCount(from, to);
+}
+
+function amountInRange(event, start, end) {
+  return (Number(event.amount) || 0) * overlapDayCount(event, start, end);
+}
+
 function updateAmountHint() {
   const form = document.getElementById("eventForm");
   const hint = document.getElementById("amountHint");
@@ -391,6 +402,10 @@ function reportRange() {
   const startMonth = toISODate(startOfMonth(month));
   const endMonth = toISODate(endOfMonth(month));
   if (r.kind === "monthly") return { start: startMonth, end: endMonth };
+  if (r.kind === "yearly") {
+    const year = month.getFullYear();
+    return { start: `${year}-01-01`, end: `${year}-12-31` };
+  }
   if (r.kind === "biweekly") {
     if (r.biweekly === "firstHalf") return { start: startMonth, end: addDays(startMonth, 14) };
     if (r.biweekly === "secondHalf") return { start: addDays(startMonth, 15), end: endMonth };
@@ -401,8 +416,7 @@ function reportRange() {
   return { start: a, end: b };
 }
 
-function summarize() {
-  const { start, end } = reportRange();
+function summarizeRange(start, end) {
   const events = state.events
     .filter((e) => e.startDate <= end && e.endDate >= start)
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
@@ -425,16 +439,17 @@ function summarize() {
     const from = event.startDate > start ? event.startDate : start;
     const to = event.endDate < end ? event.endDate : end;
     daysBetween(from, to).forEach((d) => byCompany[key].days.add(d));
+    const earned = amountInRange(event, start, end);
     byCompany[key].jobs += 1;
-    byCompany[key].amount += jobTotal(event);
+    byCompany[key].amount += earned;
     if (event.paymentStatus === "pending") {
-      byCompany[key].pendingAmount += jobTotal(event);
+      byCompany[key].pendingAmount += earned;
     }
     byCompany[key].events.push(event);
   }
   const paid = events.filter((e) => e.paymentStatus === "paid");
   const pending = events.filter((e) => e.paymentStatus === "pending");
-  const total = events.reduce((sum, e) => sum + jobTotal(e), 0);
+  const total = events.reduce((sum, e) => sum + amountInRange(e, start, end), 0);
   return {
     start,
     end,
@@ -447,9 +462,34 @@ function summarize() {
         events: [...c.events].sort((a, b) => a.startDate.localeCompare(b.startDate)),
       }))
       .sort((a, b) => b.amount - a.amount),
-    paid: { count: paid.length, amount: paid.reduce((s, e) => s + jobTotal(e), 0) },
-    pending: { count: pending.length, amount: pending.reduce((s, e) => s + jobTotal(e), 0) },
+    paid: { count: paid.length, amount: paid.reduce((s, e) => s + amountInRange(e, start, end), 0) },
+    pending: { count: pending.length, amount: pending.reduce((s, e) => s + amountInRange(e, start, end), 0) },
   };
+}
+
+function summarize() {
+  const { start, end } = reportRange();
+  return summarizeRange(start, end);
+}
+
+function monthlyEarnings(year) {
+  const rows = [];
+  for (let month = 0; month < 12; month += 1) {
+    const anchor = new Date(year, month, 1);
+    const start = toISODate(startOfMonth(anchor));
+    const end = toISODate(endOfMonth(anchor));
+    const summary = summarizeRange(start, end);
+    rows.push({
+      start,
+      end,
+      label: formatDate(anchor, { month: "long" }),
+      total: summary.total,
+      jobCount: summary.jobCount,
+      paid: summary.paid.amount,
+      pending: summary.pending.amount,
+    });
+  }
+  return rows;
 }
 
 function formatRange(start, end) {
@@ -525,8 +565,8 @@ function companyInvoice(companyId) {
       date: formatJobDate(event),
       project: eventTitle(event),
       status: event.paymentStatus === "paid" ? "Pagado" : "Pendiente",
-      amount: money(jobTotal(event)),
-      amountRaw: jobTotal(event),
+      amount: money(amountInRange(event, summary.start, summary.end)),
+      amountRaw: amountInRange(event, summary.start, summary.end),
     })),
     total: money(company.amount),
     fileName: `Reporte-${(company.name || "cliente").replace(/[^\wáéíóúñÁÉÍÓÚÑ]+/gi, "-")}.pdf`,
@@ -612,7 +652,15 @@ function renderReports() {
       <button type="button" id="nextReportMonth">›</button>
     </div>
   `;
-  if (r.kind === "biweekly") {
+  if (r.kind === "yearly") {
+    extra = `
+      <div class="month-nav">
+        <button type="button" id="prevReportYear">‹</button>
+        <h2>${r.month.getFullYear()}</h2>
+        <button type="button" id="nextReportYear">›</button>
+      </div>
+    `;
+  } else if (r.kind === "biweekly") {
     extra += `
       <label>Quincena
         <select id="biweeklyMode">
@@ -635,10 +683,33 @@ function renderReports() {
   document.getElementById("periodTitle").textContent = formatRange(summary.start, summary.end);
   document.getElementById("metrics").innerHTML = `
     <div class="metric"><span>Trabajos</span><strong>${summary.jobCount}</strong></div>
-    <div class="metric"><span>Total a cobrar</span><strong>${money(summary.total)}</strong></div>
+    <div class="metric"><span>${r.kind === "yearly" ? "Total del año" : "Total a cobrar"}</span><strong>${money(summary.total)}</strong></div>
     <div class="metric"><span>Pagado</span><strong>${money(summary.paid.amount)}</strong></div>
     <div class="metric"><span>Pendiente</span><strong>${money(summary.pending.amount)}</strong></div>
   `;
+
+  const monthsBox = document.getElementById("monthlyBreakdown");
+  if (r.kind === "yearly") {
+    const months = monthlyEarnings(r.month.getFullYear());
+    monthsBox.classList.remove("hidden");
+    monthsBox.innerHTML = `
+      <h3>Ganado por mes</h3>
+      <p class="muted">Monto diario × días de cada mes. Toca un mes para ver el detalle.</p>
+      ${months.map((m) => `
+        <button type="button" class="month-earn" data-open-month="${m.start}">
+          <span>
+            <strong>${escapeHtml(m.label)}</strong>
+            <div class="muted">${m.jobCount ? `${m.jobCount} trabajo${m.jobCount === 1 ? "" : "s"}` : "Sin trabajos"}</div>
+          </span>
+          <strong>${money(m.total)}</strong>
+        </button>
+      `).join("")}
+    `;
+  } else {
+    monthsBox.classList.add("hidden");
+    monthsBox.innerHTML = "";
+  }
+
   document.getElementById("companyBreakdown").innerHTML = `
     <h3>Desglose por empresa</h3>
     <p class="muted">Cada cliente muestra sus trabajos por fecha y el total a cobrar. Genera un reporte PDF para enviarlo y que te paguen.</p>
@@ -656,7 +727,7 @@ function renderReports() {
           <div class="job-line">
             <span class="date">${escapeHtml(formatJobDate(event))}</span>
             <span>${escapeHtml(eventTitle(event))}</span>
-            <strong>${money(jobTotal(event))}</strong>
+            <strong>${money(amountInRange(event, summary.start, summary.end))}</strong>
           </div>
         `).join("")}
         <div class="total-line"><span>Total</span><span>${money(c.amount)}</span></div>
@@ -678,7 +749,7 @@ function renderReports() {
     <h3>Trabajos del período</h3>
     ${summary.events.map((event) => {
       const company = companyById(event.companyId);
-      return `<div class="breakdown-row"><div><strong>${escapeHtml(eventTitle(event))}</strong><div class="muted">${event.startDate}${event.startDate !== event.endDate ? " – " + event.endDate : ""} · ${escapeHtml(company?.name || "")}</div></div><strong>${money(jobTotal(event))}</strong></div>`;
+      return `<div class="breakdown-row"><div><strong>${escapeHtml(eventTitle(event))}</strong><div class="muted">${event.startDate}${event.startDate !== event.endDate ? " – " + event.endDate : ""} · ${escapeHtml(company?.name || "")}</div></div><strong>${money(amountInRange(event, summary.start, summary.end))}</strong></div>`;
     }).join("") || `<p class="muted">Ajusta el rango para ver resultados.</p>`}
   `;
 }
@@ -687,13 +758,25 @@ function reportHTML(summary) {
   const rows = summary.events.map((event) => {
     const company = companyById(event.companyId);
     const fecha = event.startDate === event.endDate ? event.startDate : `${event.startDate} – ${event.endDate}`;
-    return `<tr><td>${fecha}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventTitle(event))}</td><td>${money(jobTotal(event))}</td></tr>`;
+    return `<tr><td>${fecha}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventTitle(event))}</td><td>${money(amountInRange(event, summary.start, summary.end))}</td></tr>`;
   }).join("");
+  const year = state.report.month.getFullYear();
+  const months = state.report.kind === "yearly"
+    ? monthlyEarnings(year).map((m) => `<tr><td>${escapeHtml(m.label)}</td><td>${m.jobCount}</td><td>${money(m.total)}</td></tr>`).join("")
+    : "";
+  const monthsBlock = state.report.kind === "yearly" ? `
+    <h3>Ganado por mes</h3>
+    <table>
+      <thead><tr><th>Mes</th><th>Trabajos</th><th>Total</th></tr></thead>
+      <tbody>${months}</tbody>
+    </table>
+  ` : "";
   return `
     <h1>Reporte</h1>
     <p>Período: ${formatRange(summary.start, summary.end)}</p>
     <p>Generado ${new Date().toLocaleString(localeTag())}</p>
-    <p><strong>Trabajos:</strong> ${summary.jobCount} &nbsp; <strong>Total a cobrar:</strong> ${money(summary.total)}</p>
+    <p><strong>Trabajos:</strong> ${summary.jobCount} &nbsp; <strong>${state.report.kind === "yearly" ? "Total del año" : "Total a cobrar"}:</strong> ${money(summary.total)}</p>
+    ${monthsBlock}
     <h3>Desglose por empresa</h3>
     ${summary.companies.map((c) => `<p>${escapeHtml(c.name)} · ${c.days.size} días · ${money(c.amount)}</p>`).join("")}
     <table>
@@ -919,6 +1002,24 @@ document.getElementById("periodControls").addEventListener("click", (event) => {
     state.report.month = new Date(state.report.month.getFullYear(), state.report.month.getMonth() + 1, 1);
     renderReports();
   }
+  if (event.target.id === "prevReportYear") {
+    state.report.month = new Date(state.report.month.getFullYear() - 1, 0, 1);
+    renderReports();
+  }
+  if (event.target.id === "nextReportYear") {
+    state.report.month = new Date(state.report.month.getFullYear() + 1, 0, 1);
+    renderReports();
+  }
+});
+document.getElementById("monthlyBreakdown").addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-open-month]");
+  if (!btn) return;
+  state.report.kind = "monthly";
+  state.report.month = startOfMonth(parseISO(btn.dataset.openMonth));
+  document.querySelectorAll("#kindPicker button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.kind === "monthly");
+  });
+  renderReports();
 });
 document.getElementById("periodControls").addEventListener("change", (event) => {
   if (event.target.id === "biweeklyMode") state.report.biweekly = event.target.value;

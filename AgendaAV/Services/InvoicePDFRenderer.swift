@@ -15,9 +15,10 @@ enum InvoicePDFRenderer {
         companyName: String,
         periodTitle: String,
         events: [WorkEvent],
+        range: ClosedRange<Date>,
         issuer: InvoiceIssuer
     ) -> Data {
-        let total = events.reduce(Decimal.zero) { $0 + $1.billedAmount }
+        let total = events.reduce(Decimal.zero) { $0 + $1.billedAmount(in: range) }
 
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
         return renderer.pdfData { context in
@@ -28,6 +29,7 @@ enum InvoicePDFRenderer {
             y = drawParties(companyName: companyName, periodTitle: periodTitle, issuer: issuer, y: y)
             y = drawTable(
                 events: events,
+                range: range,
                 total: total,
                 issuer: issuer,
                 y: y,
@@ -115,6 +117,7 @@ enum InvoicePDFRenderer {
 
     private static func drawTable(
         events: [WorkEvent],
+        range: ClosedRange<Date>,
         total: Decimal,
         issuer: InvoiceIssuer,
         y startY: CGFloat,
@@ -154,7 +157,7 @@ enum InvoicePDFRenderer {
             dateLabel(for: event).draw(in: CGRect(x: margin + 6, y: y, width: 110, height: 16), withAttributes: attrs)
             event.projectName.draw(in: CGRect(x: margin + 120, y: y, width: 210, height: 16), withAttributes: attrs)
             event.paymentStatus.title.draw(in: CGRect(x: margin + 334, y: y, width: 70, height: 16), withAttributes: attrs)
-            let amount = CurrencyFormat.string(from: event.billedAmount)
+            let amount = CurrencyFormat.string(from: event.billedAmount(in: range))
             let amountWidth = (amount as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 10, weight: .semibold)]).width
             amount.draw(
                 at: CGPoint(x: pageRect.width - margin - amountWidth, y: y),

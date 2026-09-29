@@ -8,7 +8,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="stylesheet" href="styles.css?v=inicio" />
+  <link rel="stylesheet" href="styles.css?v=anual" />
 </head>
 <body>
   <div class="phone">
@@ -41,15 +41,17 @@
 
     <main id="reportsScreen" class="screen hidden">
       <section class="card">
-        <div class="segmented" id="kindPicker">
+        <div class="segmented wrap" id="kindPicker">
           <button type="button" data-kind="biweekly">Quincenal</button>
           <button type="button" data-kind="monthly" class="active">Mensual</button>
-          <button type="button" data-kind="custom">Personalizado</button>
+          <button type="button" data-kind="yearly">Anual</button>
+          <button type="button" data-kind="custom">Del… al…</button>
         </div>
         <div id="periodControls"></div>
         <p class="muted" id="periodTitle"></p>
       </section>
       <section class="metrics" id="metrics"></section>
+      <section class="card hidden" id="monthlyBreakdown"></section>
       <section class="card" id="invoiceProfileCard"></section>
       <section class="card" id="companyBreakdown"></section>
       <section class="card" id="statusBreakdown"></section>
@@ -175,7 +177,7 @@
   </div>
 
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="pdf.js?v=inicio"></script>
-  <script src="app.js?v=inicio"></script>
+  <script src="pdf.js?v=anual"></script>
+  <script src="app.js?v=anual"></script>
 </body>
 </html>

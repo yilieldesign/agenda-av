@@ -3,6 +3,7 @@ import Foundation
 enum ReportKind: String, CaseIterable, Identifiable {
     case biweekly
     case monthly
+    case yearly
     case custom
 
     var id: String { rawValue }
@@ -11,7 +12,8 @@ enum ReportKind: String, CaseIterable, Identifiable {
         switch self {
         case .biweekly: "Quincenal"
         case .monthly: "Mensual"
-        case .custom: "Personalizado"
+        case .yearly: "Anual"
+        case .custom: "Del… al…"
         }
     }
 }
@@ -46,6 +48,10 @@ struct ReportPeriod: Equatable {
         case .monthly:
             let start = calendar.startOfMonth(for: monthAnchor)
             let end = calendar.startOfDay(for: calendar.endOfMonth(for: monthAnchor))
+            return start ... end
+        case .yearly:
+            let start = calendar.startOfDay(for: calendar.startOfYear(for: monthAnchor))
+            let end = calendar.startOfDay(for: calendar.endOfYear(for: monthAnchor))
             return start ... end
         case .biweekly:
             switch biweeklyMode {

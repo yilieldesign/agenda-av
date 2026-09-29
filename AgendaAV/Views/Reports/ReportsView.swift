@@ -20,6 +20,9 @@ struct ReportsView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     periodCard
                     totalsGrid
+                    if period.kind == .yearly {
+                        monthlyBreakdownCard
+                    }
                     invoiceProfileCard
                     companyBreakdown
                     paymentBreakdown
@@ -50,6 +53,8 @@ struct ReportsView: View {
             switch period.kind {
             case .monthly:
                 monthStepper
+            case .yearly:
+                yearStepper
             case .biweekly:
                 monthStepper
                 Picker("Quincena", selection: $period.biweeklyMode) {
@@ -95,13 +100,33 @@ struct ReportsView: View {
         .foregroundStyle(.primary)
     }
 
+    private var yearStepper: some View {
+        HStack {
+            Button {
+                shiftYear(-1)
+            } label: {
+                Image(systemName: "chevron.left.circle.fill")
+            }
+            Spacer()
+            Text(String(Calendar.current.component(.year, from: period.monthAnchor)))
+                .font(.headline)
+            Spacer()
+            Button {
+                shiftYear(1)
+            } label: {
+                Image(systemName: "chevron.right.circle.fill")
+            }
+        }
+        .foregroundStyle(.primary)
+    }
+
     // MARK: - Totals
 
     private var totalsGrid: some View {
         let columns = [GridItem(.flexible()), GridItem(.flexible())]
         return LazyVGrid(columns: columns, spacing: 12) {
             metricTile(title: "Trabajos", value: "\(summary.jobCount)", systemImage: "briefcase.fill")
-            metricTile(title: "Total a cobrar", value: CurrencyFormat.string(from: summary.totalAmount), systemImage: "banknote.fill")
+            metricTile(title: period.kind == .yearly ? "Total del año" : "Total a cobrar", value: CurrencyFormat.string(from: summary.totalAmount), systemImage: "banknote.fill")
             metricTile(title: "Pagado", value: CurrencyFormat.string(from: summary.payment.paidAmount), systemImage: "checkmark.circle.fill")
             metricTile(title: "Pendiente", value: CurrencyFormat.string(from: summary.payment.pendingAmount), systemImage: "clock.badge.exclamationmark")
         }
@@ -123,6 +148,46 @@ struct ReportsView: View {
     }
 
     // MARK: - Breakdowns
+
+    private var monthlyBreakdownCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Ganado por mes")
+                .font(.headline)
+            Text("Monto diario × días de cada mes. Toca un mes para ver el detalle.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ForEach(summary.monthlyRows) { row in
+                Button {
+                    period.kind = .monthly
+                    period.monthAnchor = row.start
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.label)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                            Text(row.jobCount == 0 ? "Sin trabajos" : "\(row.jobCount) trabajo\(row.jobCount == 1 ? "" : "s")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(CurrencyFormat.string(from: row.total))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                    }
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+                if row.id != summary.monthlyRows.last?.id {
+                    Divider()
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: AVStyle.cardCorner, style: .continuous))
+    }
 
     private var invoiceProfileCard: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -165,7 +230,7 @@ struct ReportsView: View {
 
     private func companyInvoiceBlock(_ row: CompanyBreakdown) -> some View {
         let jobs = companyEvents(row)
-        let pending = jobs.filter { $0.paymentStatus == .pending }.reduce(Decimal.zero) { $0 + $1.billedAmount }
+        let pending = jobs.filter { $0.paymentStatus == .pending }.reduce(Decimal.zero) { $0 + $1.billedAmount(in: period.closedRange) }
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Circle()
@@ -193,7 +258,7 @@ struct ReportsView: View {
                         .font(.caption)
                         .lineLimit(2)
                     Spacer()
-                    Text(CurrencyFormat.string(from: event.billedAmount))
+                    Text(CurrencyFormat.string(from: event.billedAmount(in: period.closedRange)))
                         .font(.caption.weight(.semibold))
                 }
             }
@@ -322,6 +387,12 @@ struct ReportsView: View {
         }
     }
 
+    private func shiftYear(_ value: Int) {
+        if let next = Calendar.current.date(byAdding: .year, value: value, to: period.monthAnchor) {
+            period.monthAnchor = next
+        }
+    }
+
     private func makePDFData() -> Data {
         PDFReportRenderer.makePDF(from: summary)
     }
@@ -363,6 +434,7 @@ struct ReportsView: View {
             companyName: row.name,
             periodTitle: summary.periodTitle,
             events: companyEvents(row),
+            range: period.closedRange,
             issuer: InvoiceIssuer(
                 name: invoiceName,
                 phone: invoicePhone,

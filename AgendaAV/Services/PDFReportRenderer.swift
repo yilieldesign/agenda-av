@@ -13,6 +13,7 @@ enum PDFReportRenderer {
             var y = drawHeader(summary)
 
             y = drawSummaryCards(summary, y: y)
+            y = drawMonthlyBreakdown(summary, y: y, context: context, page: &page)
             y = drawCompanyBreakdown(summary, y: y, context: context, page: &page)
             y = drawEventTable(summary, y: y, context: context, page: &page)
             drawFooter(page: page)
@@ -116,7 +117,7 @@ enum PDFReportRenderer {
         let height: CGFloat = 58
         let cards: [(String, String)] = [
             ("Trabajos", "\(summary.jobCount)"),
-            ("Total a cobrar", CurrencyFormat.string(from: summary.totalAmount)),
+            (summary.period.kind == .yearly ? "Total del año" : "Total a cobrar", CurrencyFormat.string(from: summary.totalAmount)),
             (
                 "Pendiente",
                 "\(summary.payment.pendingCount) · \(CurrencyFormat.string(from: summary.payment.pendingAmount))"
@@ -147,6 +148,46 @@ enum PDFReportRenderer {
         }
 
         return startY + height + 22
+    }
+
+    // MARK: - Monthly breakdown
+
+    private static func drawMonthlyBreakdown(
+        _ summary: ReportSummary,
+        y startY: CGFloat,
+        context: UIGraphicsPDFRendererContext,
+        page: inout Int
+    ) -> CGFloat {
+        guard !summary.monthlyRows.isEmpty else { return startY }
+        var y = startY
+        ensureSpace(28, y: &y, context: context, page: &page)
+        "Ganado por mes".draw(
+            at: CGPoint(x: margin, y: y),
+            withAttributes: sectionAttributes
+        )
+        y += 22
+
+        for row in summary.monthlyRows {
+            ensureSpace(20, y: &y, context: context, page: &page)
+            let jobs = row.jobCount == 0
+                ? "Sin trabajos"
+                : "\(row.jobCount) trabajo\(row.jobCount == 1 ? "" : "s")"
+            "\(row.label)  ·  \(jobs)".draw(
+                at: CGPoint(x: margin, y: y),
+                withAttributes: bodyAttributes
+            )
+            let amount = CurrencyFormat.string(from: row.total)
+            let amountWidth = (amount as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 11, weight: .semibold)]).width
+            amount.draw(
+                at: CGPoint(x: pageRect.width - margin - amountWidth, y: y),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 11, weight: .semibold),
+                    .foregroundColor: UIColor.black
+                ]
+            )
+            y += 18
+        }
+        return y + 10
     }
 
     // MARK: - Company breakdown
@@ -247,7 +288,7 @@ enum PDFReportRenderer {
             dateLabel(for: event).draw(in: CGRect(x: columns.date.minX, y: y, width: columns.date.width, height: 16), withAttributes: tableAttributes)
             (event.company?.name ?? "—").draw(in: CGRect(x: columns.company.minX, y: y, width: columns.company.width, height: 16), withAttributes: tableAttributes)
             event.projectName.draw(in: CGRect(x: columns.project.minX, y: y, width: columns.project.width, height: 16), withAttributes: tableAttributes)
-            let amount = CurrencyFormat.string(from: event.billedAmount)
+            let amount = CurrencyFormat.string(from: event.billedAmount(in: summary.period.closedRange))
             let amountBox = CGRect(x: columns.amount.minX, y: y, width: columns.amount.width, height: 16)
             amount.draw(in: amountBox, withAttributes: tableRightAttributes)
             y += 20

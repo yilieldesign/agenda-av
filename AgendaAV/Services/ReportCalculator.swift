@@ -17,6 +17,17 @@ struct PaymentBreakdown: Hashable {
     let pendingAmount: Decimal
 }
 
+struct MonthEarnings: Identifiable, Hashable {
+    var id: Int { month }
+    let month: Int
+    let start: Date
+    let label: String
+    let total: Decimal
+    let jobCount: Int
+    let paid: Decimal
+    let pending: Decimal
+}
+
 struct ReportSummary {
     let period: ReportPeriod
     let events: [WorkEvent]
@@ -24,6 +35,7 @@ struct ReportSummary {
     let totalAmount: Decimal
     let byCompany: [CompanyBreakdown]
     let payment: PaymentBreakdown
+    let monthlyRows: [MonthEarnings]
 
     var periodTitle: String { period.title }
 }
@@ -45,7 +57,7 @@ enum ReportCalculator {
             var bucket = companyBuckets[key] ?? (name, hex, [], 0, 0)
             bucket.days.formUnion(days)
             bucket.jobs += 1
-            bucket.amount += event.billedAmount
+            bucket.amount += event.billedAmount(in: range, calendar: calendar)
             companyBuckets[key] = bucket
         }
 
@@ -65,19 +77,60 @@ enum ReportCalculator {
         let paidEvents = overlapping.filter { $0.paymentStatus == .paid }
         let pendingEvents = overlapping.filter { $0.paymentStatus == .pending }
 
+        let monthlyRows: [MonthEarnings]
+        if period.kind == .yearly {
+            monthlyRows = monthlyEarnings(
+                events: events,
+                year: calendar.component(.year, from: period.monthAnchor),
+                calendar: calendar
+            )
+        } else {
+            monthlyRows = []
+        }
+
         return ReportSummary(
             period: period,
             events: overlapping,
             jobCount: overlapping.count,
-            totalAmount: overlapping.reduce(0) { $0 + $1.billedAmount },
+            totalAmount: overlapping.reduce(0) { $0 + $1.billedAmount(in: range, calendar: calendar) },
             byCompany: byCompany,
             payment: PaymentBreakdown(
                 paidCount: paidEvents.count,
                 pendingCount: pendingEvents.count,
-                paidAmount: paidEvents.reduce(0) { $0 + $1.billedAmount },
-                pendingAmount: pendingEvents.reduce(0) { $0 + $1.billedAmount }
-            )
+                paidAmount: paidEvents.reduce(0) { $0 + $1.billedAmount(in: range, calendar: calendar) },
+                pendingAmount: pendingEvents.reduce(0) { $0 + $1.billedAmount(in: range, calendar: calendar) }
+            ),
+            monthlyRows: monthlyRows
         )
+    }
+
+    static func monthlyEarnings(
+        events: [WorkEvent],
+        year: Int,
+        calendar: Calendar = .current
+    ) -> [MonthEarnings] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "es_DO")
+        formatter.setLocalizedDateFormatFromTemplate("MMMM")
+
+        return (1...12).compactMap { month in
+            var components = DateComponents()
+            components.year = year
+            components.month = month
+            components.day = 1
+            guard let start = calendar.date(from: components) else { return nil }
+            let monthPeriod = ReportPeriod(kind: .monthly, monthAnchor: start)
+            let summary = summarize(events: events, period: monthPeriod, calendar: calendar)
+            return MonthEarnings(
+                month: month,
+                start: start,
+                label: formatter.string(from: start).capitalized,
+                total: summary.totalAmount,
+                jobCount: summary.jobCount,
+                paid: summary.payment.paidAmount,
+                pending: summary.payment.pendingAmount
+            )
+        }
     }
 
     private static func overlaps(_ event: WorkEvent, range: ClosedRange<Date>, calendar: Calendar) -> Bool {
