@@ -480,7 +480,7 @@ function saveProfile(profile) {
 function renderInvoiceProfile() {
   const profile = loadProfile();
   document.getElementById("invoiceProfileCard").innerHTML = `
-    <h3>Tus datos en la factura</h3>
+    <h3>Tus datos en el reporte</h3>
     <p class="muted">Salen en el PDF que envías a la empresa para que te paguen.</p>
     <label>Tu nombre
       <input id="profileName" value="${escapeHtml(profile.name)}" placeholder="Ej. Juan Pérez — Camarógrafo">
@@ -626,7 +626,7 @@ function renderReports() {
   `;
   document.getElementById("companyBreakdown").innerHTML = `
     <h3>Desglose por empresa</h3>
-    <p class="muted">Cada cliente muestra sus trabajos por fecha y el total a cobrar. Genera una factura PDF para enviarla y que te paguen.</p>
+    <p class="muted">Cada cliente muestra sus trabajos por fecha y el total a cobrar. Genera un reporte PDF para enviarlo y que te paguen.</p>
     ${summary.companies.length ? summary.companies.map((c) => `
       <article class="company-block-card">
         <div class="breakdown-row">
@@ -648,7 +648,7 @@ function renderReports() {
         <div class="pending-line"><span>Pendiente de pago</span><span>${money(c.pendingAmount)}</span></div>
         <div class="row-actions invoice-actions">
           <button type="button" class="secondary" data-print-company="${c.id}">Imprimir</button>
-          <button type="button" class="primary" data-invoice="${c.id}">Factura PDF</button>
+          <button type="button" class="primary" data-invoice="${c.id}">Reporte PDF</button>
         </div>
       </article>
     `).join("") : `<p class="muted">No hay trabajos en este período.</p>`}
@@ -675,8 +675,8 @@ function reportHTML(summary) {
     return `<tr><td>${fecha}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventTitle(event))}</td><td>${money(jobTotal(event))}</td></tr>`;
   }).join("");
   return `
-    <h1>Informe de trabajos</h1>
-    <p>Agenda AV · Período: ${formatRange(summary.start, summary.end)}</p>
+    <h1>Reporte</h1>
+    <p>Período: ${formatRange(summary.start, summary.end)}</p>
     <p>Generado ${new Date().toLocaleString(localeTag())}</p>
     <p><strong>Trabajos:</strong> ${summary.jobCount} &nbsp; <strong>Total a cobrar:</strong> ${money(summary.total)}</p>
     <h3>Desglose por empresa</h3>
@@ -699,13 +699,13 @@ function printReport() {
 
 async function shareReport() {
   const summary = summarize();
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Informe Agenda AV</title>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Reporte</title>
     <style>body{font-family:Segoe UI,sans-serif;padding:24px} table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left} th{background:#122027;color:#fff}</style>
     </head><body>${reportHTML(summary)}</body></html>`;
   const blob = new Blob([html], { type: "text/html" });
-  const file = new File([blob], `Informe-AgendaAV-${summary.start}.html`, { type: "text/html" });
+  const file = new File([blob], `Reporte-${summary.start}.html`, { type: "text/html" });
   if (navigator.share && navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ title: "Informe Agenda AV", files: [file] });
+    await navigator.share({ title: "Reporte", files: [file] });
     return;
   }
   const url = URL.createObjectURL(blob);

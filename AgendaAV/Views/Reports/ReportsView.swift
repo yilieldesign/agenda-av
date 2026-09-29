@@ -226,7 +226,7 @@ struct ReportsView: View {
                 Button {
                     shareInvoice(for: row)
                 } label: {
-                    Label("Factura PDF", systemImage: "doc.richtext")
+                    Label("Reporte PDF", systemImage: "doc.richtext")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -340,7 +340,7 @@ struct ReportsView: View {
 
     private func printPDF() {
         let data = makePDFData()
-        presentPrint(data, jobName: "Informe Agenda AV")
+        presentPrint(data, jobName: "Reporte")
     }
 
     private func companyEvents(_ row: CompanyBreakdown) -> [WorkEvent] {
@@ -384,7 +384,7 @@ struct ReportsView: View {
     }
 
     private func printInvoice(for row: CompanyBreakdown) {
-        presentPrint(invoiceData(for: row), jobName: "Factura \(row.name)")
+        presentPrint(invoiceData(for: row), jobName: "Reporte \(row.name)")
     }
 
     private func presentPrint(_ data: Data, jobName: String) {

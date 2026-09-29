@@ -1,4 +1,4 @@
-/** Genera un PDF (WinAnsi) listo para enviar como factura. */
+/** Genera un PDF (WinAnsi) de reporte para enviar a cobro. */
 const InvoicePDF = {
   build(invoice) {
     const pageW = 612;
@@ -129,6 +129,7 @@ const InvoicePDF = {
       `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`
     );
     const catalogId = add(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
+    const infoId = add(`<< /Title ${pdfString("Reporte")} >>`);
 
     const bodies = objects.map((body) => body.replace("PAGES", `${pagesId} 0 R`));
     let offset = 0;
@@ -148,7 +149,7 @@ const InvoicePDF = {
     });
     chunks.push(xrefTable);
     chunks.push(
-      `trailer\n<< /Size ${bodies.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefStart}\n%%EOF`
+      `trailer\n<< /Size ${bodies.length + 1} /Root ${catalogId} 0 R /Info ${infoId} 0 R >>\nstartxref\n${xrefStart}\n%%EOF`
     );
     return new Blob(chunks, { type: "application/pdf" });
   },

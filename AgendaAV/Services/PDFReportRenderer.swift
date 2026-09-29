@@ -21,7 +21,7 @@ enum PDFReportRenderer {
 
     static func suggestedFileName(for summary: ReportSummary) -> String {
         let start = summary.period.closedRange.lowerBound.formatted(.dateTime.year().month().day())
-        return "Informe-AgendaAV-\(start).pdf"
+        return "Reporte-\(start).pdf"
     }
 
     // MARK: - Pages
@@ -55,16 +55,8 @@ enum PDFReportRenderer {
         UIColor(red: 0.07, green: 0.16, blue: 0.22, alpha: 1).setFill()
         UIRectFill(header)
 
-        "AGENDA AV".draw(
-            at: CGPoint(x: margin, y: 18),
-            withAttributes: [
-                .font: UIFont.systemFont(ofSize: 11, weight: .semibold),
-                .foregroundColor: UIColor.white.withAlphaComponent(0.7)
-            ]
-        )
-
-        "Informe de trabajos".draw(
-            at: CGPoint(x: margin, y: 36),
+        "REPORTE".draw(
+            at: CGPoint(x: margin, y: 28),
             withAttributes: [
                 .font: UIFont.systemFont(ofSize: 22, weight: .bold),
                 .foregroundColor: UIColor.white
@@ -94,7 +86,7 @@ enum PDFReportRenderer {
     }
 
     private static func drawContinuedHeader(page: Int) {
-        "Agenda AV · Informe de trabajos (cont.)  ·  pág. \(page)".draw(
+        "Reporte (cont.)  ·  pág. \(page)".draw(
             at: CGPoint(x: margin, y: margin),
             withAttributes: [
                 .font: UIFont.systemFont(ofSize: 10, weight: .medium),
@@ -104,7 +96,7 @@ enum PDFReportRenderer {
     }
 
     private static func drawFooter(page: Int) {
-        let text = "Agenda AV  ·  Técnico audiovisual freelance  ·  \(page)"
+        let text = "Reporte  ·  \(page)"
         let font = UIFont.systemFont(ofSize: 9, weight: .regular)
         let width = (text as NSString).size(withAttributes: [.font: font]).width
         text.draw(
