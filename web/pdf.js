@@ -40,7 +40,7 @@ const InvoicePDF = {
       lines.push("1 1 1 rg");
       text(margin, pageH - 40, 11, true, "AGENDA AV");
       text(margin, pageH - 64, 22, true, "FACTURA");
-      text(margin, pageH - 86, 11, false, `Folio ${invoice.folio}   ·   ${invoice.issued}`);
+      text(margin, pageH - 86, 11, false, invoice.issued);
       lines.push("0 0 0 rg");
     };
 
@@ -93,9 +93,6 @@ const InvoicePDF = {
     y -= 20;
     text(margin, y, 12, true, "TOTAL");
     text(pageW - margin - 90, y, 12, true, invoice.total);
-    y -= 18;
-    text(margin, y, 11, false, "Pendiente de pago");
-    text(pageW - margin - 90, y, 11, true, invoice.pending);
     y -= 28;
     if (invoice.paymentNote) {
       ensure(40);

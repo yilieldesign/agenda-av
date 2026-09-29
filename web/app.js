@@ -494,18 +494,12 @@ function renderInvoiceProfile() {
   `;
 }
 
-function invoiceFolio(companyName, start) {
-  const slug = (companyName || "CLI").replace(/[^A-Za-z0-9]/g, "").slice(0, 6).toUpperCase() || "CLI";
-  return `AV-${start.replaceAll("-", "")}-${slug}`;
-}
-
 function companyInvoice(companyId) {
   const summary = summarize();
   const company = summary.companies.find((c) => c.id === companyId);
   if (!company) return null;
   const profile = loadProfile();
   return {
-    folio: invoiceFolio(company.name, summary.start),
     issued: formatDate(new Date(), { day: "numeric", month: "long", year: "numeric" }),
     fromName: profile.name || "Servicios audiovisuales freelance",
     fromPhone: profile.phone,
@@ -520,8 +514,7 @@ function companyInvoice(companyId) {
       amountRaw: jobTotal(event),
     })),
     total: money(company.amount),
-    pending: money(company.pendingAmount),
-    fileName: `Factura-${invoiceFolio(company.name, summary.start)}.pdf`,
+    fileName: `Factura-${(company.name || "cliente").replace(/[^\wáéíóúñÁÉÍÓÚÑ]+/gi, "-")}.pdf`,
   };
 }
 
@@ -537,7 +530,7 @@ function invoiceHTML(inv) {
   return `
     <p class="eyebrow">Agenda AV</p>
     <h2>Factura</h2>
-    <p class="muted">Folio ${escapeHtml(inv.folio)} · ${escapeHtml(inv.issued)}</p>
+    <p class="muted">${escapeHtml(inv.issued)}</p>
     <p><strong>De:</strong> ${escapeHtml(inv.fromName)}${inv.fromPhone ? ` · ${escapeHtml(inv.fromPhone)}` : ""}</p>
     <p><strong>Para:</strong> ${escapeHtml(inv.companyName)}</p>
     <p><strong>Período:</strong> ${escapeHtml(inv.period)}</p>
@@ -546,7 +539,6 @@ function invoiceHTML(inv) {
       <tbody>${rows}</tbody>
       <tfoot>
         <tr><th colspan="3">Total</th><th>${escapeHtml(inv.total)}</th></tr>
-        <tr><th colspan="3">Pendiente de pago</th><th>${escapeHtml(inv.pending)}</th></tr>
       </tfoot>
     </table>
     ${inv.paymentNote ? `<p><strong>Pago:</strong> ${escapeHtml(inv.paymentNote)}</p>` : ""}
@@ -584,7 +576,7 @@ async function sendCurrentInvoice() {
   if (navigator.share && navigator.canShare?.({ files: [file] })) {
     await navigator.share({
       title: `Factura ${inv.companyName}`,
-      text: `Factura ${inv.folio} · Total ${inv.total}`,
+      text: `Factura ${inv.companyName} · Total ${inv.total}`,
       files: [file],
     });
     return;

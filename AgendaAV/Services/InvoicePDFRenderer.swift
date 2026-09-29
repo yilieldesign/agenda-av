@@ -18,20 +18,17 @@ enum InvoicePDFRenderer {
         issuer: InvoiceIssuer
     ) -> Data {
         let total = events.reduce(Decimal.zero) { $0 + $1.billedAmount }
-        let pending = events.filter { $0.paymentStatus == .pending }.reduce(Decimal.zero) { $0 + $1.billedAmount }
-        let folio = folioNumber(companyName: companyName)
 
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
         return renderer.pdfData { context in
             var page = 1
             context.beginPage()
-            var y = drawHeader(folio: folio)
+            var y = drawHeader()
 
             y = drawParties(companyName: companyName, periodTitle: periodTitle, issuer: issuer, y: y)
             y = drawTable(
                 events: events,
                 total: total,
-                pending: pending,
                 issuer: issuer,
                 y: y,
                 context: context,
@@ -42,20 +39,19 @@ enum InvoicePDFRenderer {
     }
 
     static func suggestedFileName(companyName: String) -> String {
-        "Factura-\(folioNumber(companyName: companyName)).pdf"
+        "Factura-\(fileSlug(companyName: companyName)).pdf"
     }
 
-    private static func folioNumber(companyName: String) -> String {
+    private static func fileSlug(companyName: String) -> String {
         let slug = companyName
             .uppercased()
             .unicodeScalars
             .filter { CharacterSet.alphanumerics.contains($0) }
-            .prefix(6)
-        let stamp = Date.now.formatted(.dateTime.year().month().day())
-        return "AV-\(stamp)-\(String(slug).isEmpty ? "CLI" : String(slug))"
+            .prefix(18)
+        return String(slug).isEmpty ? "cliente" : String(slug)
     }
 
-    private static func drawHeader(folio: String) -> CGFloat {
+    private static func drawHeader() -> CGFloat {
         let header = CGRect(x: 0, y: 0, width: pageRect.width, height: 100)
         UIColor(red: 0.07, green: 0.16, blue: 0.22, alpha: 1).setFill()
         UIRectFill(header)
@@ -74,7 +70,7 @@ enum InvoicePDFRenderer {
                 .foregroundColor: UIColor.white
             ]
         )
-        "Folio \(folio)  ·  \(Date.now.formatted(date: .long, time: .omitted))".draw(
+        Date.now.formatted(date: .long, time: .omitted).draw(
             at: CGPoint(x: margin, y: 70),
             withAttributes: [
                 .font: UIFont.systemFont(ofSize: 11, weight: .regular),
@@ -127,7 +123,6 @@ enum InvoicePDFRenderer {
     private static func drawTable(
         events: [WorkEvent],
         total: Decimal,
-        pending: Decimal,
         issuer: InvoiceIssuer,
         y startY: CGFloat,
         context: UIGraphicsPDFRendererContext,
@@ -184,8 +179,6 @@ enum InvoicePDFRenderer {
         y += 12
 
         drawAmountRow(title: "TOTAL", value: CurrencyFormat.string(from: total), y: y, bold: true)
-        y += 18
-        drawAmountRow(title: "Pendiente de pago", value: CurrencyFormat.string(from: pending), y: y, bold: false)
         y += 28
 
         if !issuer.paymentNote.isEmpty {
