@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>Agenda AV</title>
-  <link rel="stylesheet" href="styles.css?v=es-calendario-2" />
+  <link rel="stylesheet" href="styles.css?v=monto-dias" />
 </head>
 <body>
   <div class="phone">
@@ -96,12 +96,13 @@
           <strong>Servicios</strong>
           <button type="button" class="text-btn" id="newServiceBtn">+ Nuevo</button>
         </div>
-        <p class="muted">Marca uno o varios. El monto es único para este trabajo.</p>
+        <p class="muted">Marca uno o varios. El monto es por día y se multiplica si eliges más de un día.</p>
         <div id="serviceChips"></div>
       </div>
-      <label>Monto a cobrar
+      <label>Monto por día
         <input type="number" name="amount" min="0" step="0.01" inputmode="decimal" required />
       </label>
+      <p class="muted" id="amountHint"></p>
       <div class="segmented">
         <button type="button" class="pay-btn active" data-status="pending">Pendiente</button>
         <button type="button" class="pay-btn" data-status="paid">Pagado</button>
@@ -162,6 +163,6 @@
 
   <div id="printRoot" class="print-root" hidden></div>
   <script src="pdf.js"></script>
-  <script src="app.js?v=es-calendario-2"></script>
+  <script src="app.js?v=monto-dias"></script>
 </body>
 </html>

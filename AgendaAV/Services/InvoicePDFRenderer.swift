@@ -17,8 +17,8 @@ enum InvoicePDFRenderer {
         events: [WorkEvent],
         issuer: InvoiceIssuer
     ) -> Data {
-        let total = events.reduce(Decimal.zero) { $0 + $1.amount }
-        let pending = events.filter { $0.paymentStatus == .pending }.reduce(Decimal.zero) { $0 + $1.amount }
+        let total = events.reduce(Decimal.zero) { $0 + $1.billedAmount }
+        let pending = events.filter { $0.paymentStatus == .pending }.reduce(Decimal.zero) { $0 + $1.billedAmount }
         let folio = folioNumber(companyName: companyName)
 
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
@@ -166,7 +166,7 @@ enum InvoicePDFRenderer {
             dateLabel(for: event).draw(in: CGRect(x: margin + 6, y: y, width: 110, height: 16), withAttributes: attrs)
             event.projectName.draw(in: CGRect(x: margin + 120, y: y, width: 210, height: 16), withAttributes: attrs)
             event.paymentStatus.title.draw(in: CGRect(x: margin + 334, y: y, width: 70, height: 16), withAttributes: attrs)
-            let amount = CurrencyFormat.string(from: event.amount)
+            let amount = CurrencyFormat.string(from: event.billedAmount)
             let amountWidth = (amount as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 10, weight: .semibold)]).width
             amount.draw(
                 at: CGPoint(x: pageRect.width - margin - amountWidth, y: y),

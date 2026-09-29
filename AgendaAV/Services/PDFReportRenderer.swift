@@ -255,7 +255,7 @@ enum PDFReportRenderer {
             dateLabel(for: event).draw(in: CGRect(x: columns.date.minX, y: y, width: columns.date.width, height: 16), withAttributes: tableAttributes)
             (event.company?.name ?? "—").draw(in: CGRect(x: columns.company.minX, y: y, width: columns.company.width, height: 16), withAttributes: tableAttributes)
             event.projectName.draw(in: CGRect(x: columns.project.minX, y: y, width: columns.project.width, height: 16), withAttributes: tableAttributes)
-            let amount = CurrencyFormat.string(from: event.amount)
+            let amount = CurrencyFormat.string(from: event.billedAmount)
             let amountBox = CGRect(x: columns.amount.minX, y: y, width: columns.amount.width, height: 16)
             amount.draw(in: amountBox, withAttributes: tableRightAttributes)
             y += 20

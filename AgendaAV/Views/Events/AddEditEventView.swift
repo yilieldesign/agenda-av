@@ -62,7 +62,7 @@ struct AddEditEventView: View {
                 }
 
                 Section("Servicios") {
-                    Text("Puedes marcar varios. El monto es uno solo para este trabajo.")
+                    Text("Puedes marcar varios. El monto es por día y se multiplica si eliges más de un día.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     ForEach(services) { service in
@@ -85,11 +85,16 @@ struct AddEditEventView: View {
 
                 Section("Cobro") {
                     TextField(
-                        "Monto a cobrar",
+                        "Monto por día",
                         value: $amount,
                         format: .currency(code: CurrencyFormat.code)
                     )
                     .keyboardType(.decimalPad)
+                    if Calendar.current.inclusiveDayCount(from: startDate, to: endDate) > 1 {
+                        Text("Total a cobrar: \(CurrencyFormat.string(from: amount * Decimal(Calendar.current.inclusiveDayCount(from: startDate, to: endDate))))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     Picker("Estado del pago", selection: $paymentStatus) {
                         ForEach(PaymentStatus.allCases) { status in

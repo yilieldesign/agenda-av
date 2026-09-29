@@ -16,7 +16,7 @@ struct WorkEventRow: View {
                         .foregroundStyle(.primary)
                         .lineLimit(2)
                     Spacer()
-                    Text(CurrencyFormat.string(from: event.amount))
+                    Text(CurrencyFormat.string(from: event.billedAmount))
                         .font(.subheadline.weight(.semibold))
                         .monospacedDigit()
                 }

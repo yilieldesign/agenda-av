@@ -108,6 +108,42 @@ function daysBetween(start, end) {
   return list;
 }
 
+function dayCount(start, end) {
+  const last = end < start ? start : end;
+  return Math.max(1, daysBetween(start, last).length);
+}
+
+function eventDayCount(event) {
+  return dayCount(event.startDate, event.endDate);
+}
+
+function jobTotal(event) {
+  return (Number(event.amount) || 0) * eventDayCount(event);
+}
+
+function updateAmountHint() {
+  const form = document.getElementById("eventForm");
+  const hint = document.getElementById("amountHint");
+  if (!form || !hint) return;
+  const start = form.startDate.value;
+  const end = form.endDate.value;
+  if (!start) {
+    hint.textContent = "Se multiplica por los días del rango.";
+    return;
+  }
+  const days = dayCount(start, end || start);
+  const rate = Number(form.amount.value) || 0;
+  if (days === 1) {
+    hint.textContent = rate
+      ? `Total a cobrar: ${money(rate)} (1 día)`
+      : "Si eliges más de un día, este monto se multiplica.";
+    return;
+  }
+  hint.textContent = rate
+    ? `Total a cobrar: ${money(rate * days)} (${money(rate)} × ${days} días)`
+    : `Este monto se multiplicará por ${days} días.`;
+}
+
 function uid() {
   return crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random());
 }
@@ -329,7 +365,7 @@ function renderDayPanel() {
           ${range}
           <span class="badge ${event.paymentStatus}">${event.paymentStatus === "paid" ? "Pagado" : "Pendiente"}</span>
         </div>
-        <strong>${money(event.amount)}</strong>
+        <strong>${money(jobTotal(event))}</strong>
       </button>
     `;
   }).join("");
@@ -387,15 +423,15 @@ function summarize() {
     const to = event.endDate < end ? event.endDate : end;
     daysBetween(from, to).forEach((d) => byCompany[key].days.add(d));
     byCompany[key].jobs += 1;
-    byCompany[key].amount += Number(event.amount) || 0;
+    byCompany[key].amount += jobTotal(event);
     if (event.paymentStatus === "pending") {
-      byCompany[key].pendingAmount += Number(event.amount) || 0;
+      byCompany[key].pendingAmount += jobTotal(event);
     }
     byCompany[key].events.push(event);
   }
   const paid = events.filter((e) => e.paymentStatus === "paid");
   const pending = events.filter((e) => e.paymentStatus === "pending");
-  const total = events.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const total = events.reduce((sum, e) => sum + jobTotal(e), 0);
   return {
     start,
     end,
@@ -408,8 +444,8 @@ function summarize() {
         events: [...c.events].sort((a, b) => a.startDate.localeCompare(b.startDate)),
       }))
       .sort((a, b) => b.amount - a.amount),
-    paid: { count: paid.length, amount: paid.reduce((s, e) => s + Number(e.amount), 0) },
-    pending: { count: pending.length, amount: pending.reduce((s, e) => s + Number(e.amount), 0) },
+    paid: { count: paid.length, amount: paid.reduce((s, e) => s + jobTotal(e), 0) },
+    pending: { count: pending.length, amount: pending.reduce((s, e) => s + jobTotal(e), 0) },
   };
 }
 
@@ -480,8 +516,8 @@ function companyInvoice(companyId) {
       date: formatJobDate(event),
       project: eventTitle(event),
       status: event.paymentStatus === "paid" ? "Pagado" : "Pendiente",
-      amount: money(event.amount),
-      amountRaw: Number(event.amount) || 0,
+      amount: money(jobTotal(event)),
+      amountRaw: jobTotal(event),
     })),
     total: money(company.amount),
     pending: money(company.pendingAmount),
@@ -614,7 +650,7 @@ function renderReports() {
           <div class="job-line">
             <span class="date">${escapeHtml(formatJobDate(event))}</span>
             <span>${escapeHtml(eventTitle(event))}</span>
-            <strong>${money(event.amount)}</strong>
+            <strong>${money(jobTotal(event))}</strong>
           </div>
         `).join("")}
         <div class="total-line"><span>Total</span><span>${money(c.amount)}</span></div>
@@ -636,7 +672,7 @@ function renderReports() {
     <h3>Trabajos del período</h3>
     ${summary.events.map((event) => {
       const company = companyById(event.companyId);
-      return `<div class="breakdown-row"><div><strong>${escapeHtml(eventTitle(event))}</strong><div class="muted">${event.startDate}${event.startDate !== event.endDate ? " – " + event.endDate : ""} · ${escapeHtml(company?.name || "")}</div></div><strong>${money(event.amount)}</strong></div>`;
+      return `<div class="breakdown-row"><div><strong>${escapeHtml(eventTitle(event))}</strong><div class="muted">${event.startDate}${event.startDate !== event.endDate ? " – " + event.endDate : ""} · ${escapeHtml(company?.name || "")}</div></div><strong>${money(jobTotal(event))}</strong></div>`;
     }).join("") || `<p class="muted">Ajusta el rango para ver resultados.</p>`}
   `;
 }
@@ -645,7 +681,7 @@ function reportHTML(summary) {
   const rows = summary.events.map((event) => {
     const company = companyById(event.companyId);
     const fecha = event.startDate === event.endDate ? event.startDate : `${event.startDate} – ${event.endDate}`;
-    return `<tr><td>${fecha}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventTitle(event))}</td><td>${money(event.amount)}</td></tr>`;
+    return `<tr><td>${fecha}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventTitle(event))}</td><td>${money(jobTotal(event))}</td></tr>`;
   }).join("");
   return `
     <h1>Informe de trabajos</h1>
@@ -725,6 +761,7 @@ function openEventForm(eventId) {
   document.querySelectorAll(".pay-btn").forEach((b) => b.classList.toggle("active", b.dataset.status === state.paymentStatus));
   renderCompanySelect();
   renderServiceChips();
+  updateAmountHint();
   document.getElementById("overlay").classList.remove("hidden");
 }
 
@@ -882,6 +919,17 @@ document.getElementById("periodControls").addEventListener("change", (event) => 
   if (event.target.id === "customStart") state.report.customStart = event.target.value;
   if (event.target.id === "customEnd") state.report.customEnd = event.target.value;
   renderReports();
+});
+
+document.getElementById("eventForm").addEventListener("input", (event) => {
+  if (["startDate", "endDate", "amount"].includes(event.target.name)) {
+    updateAmountHint();
+  }
+});
+document.getElementById("eventForm").addEventListener("change", (event) => {
+  if (["startDate", "endDate"].includes(event.target.name)) {
+    updateAmountHint();
+  }
 });
 
 document.getElementById("eventForm").onsubmit = (event) => {

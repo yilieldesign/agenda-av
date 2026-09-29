@@ -45,7 +45,7 @@ enum ReportCalculator {
             var bucket = companyBuckets[key] ?? (name, hex, [], 0, 0)
             bucket.days.formUnion(days)
             bucket.jobs += 1
-            bucket.amount += event.amount
+            bucket.amount += event.billedAmount
             companyBuckets[key] = bucket
         }
 
@@ -69,13 +69,13 @@ enum ReportCalculator {
             period: period,
             events: overlapping,
             jobCount: overlapping.count,
-            totalAmount: overlapping.reduce(0) { $0 + $1.amount },
+            totalAmount: overlapping.reduce(0) { $0 + $1.billedAmount },
             byCompany: byCompany,
             payment: PaymentBreakdown(
                 paidCount: paidEvents.count,
                 pendingCount: pendingEvents.count,
-                paidAmount: paidEvents.reduce(0) { $0 + $1.amount },
-                pendingAmount: pendingEvents.reduce(0) { $0 + $1.amount }
+                paidAmount: paidEvents.reduce(0) { $0 + $1.billedAmount },
+                pendingAmount: pendingEvents.reduce(0) { $0 + $1.billedAmount }
             )
         )
     }

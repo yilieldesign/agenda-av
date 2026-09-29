@@ -165,7 +165,7 @@ struct ReportsView: View {
 
     private func companyInvoiceBlock(_ row: CompanyBreakdown) -> some View {
         let jobs = companyEvents(row)
-        let pending = jobs.filter { $0.paymentStatus == .pending }.reduce(Decimal.zero) { $0 + $1.amount }
+        let pending = jobs.filter { $0.paymentStatus == .pending }.reduce(Decimal.zero) { $0 + $1.billedAmount }
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Circle()
@@ -193,7 +193,7 @@ struct ReportsView: View {
                         .font(.caption)
                         .lineLimit(2)
                     Spacer()
-                    Text(CurrencyFormat.string(from: event.amount))
+                    Text(CurrencyFormat.string(from: event.billedAmount))
                         .font(.caption.weight(.semibold))
                 }
             }

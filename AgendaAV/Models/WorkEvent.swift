@@ -31,6 +31,11 @@ final class WorkEvent {
         Calendar.current.inclusiveDayCount(from: startDate, to: endDate)
     }
 
+    /// El `amount` es el cobro de un día; el total es ese monto por cada día del rango.
+    var billedAmount: Decimal {
+        amount * Decimal(occupiedDayCount)
+    }
+
     var listedServices: [String] {
         get {
             if let data = servicesRaw.data(using: .utf8),
