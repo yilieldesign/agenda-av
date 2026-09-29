@@ -1,5 +1,5 @@
-const STORAGE_KEY = "agenda-av-web-v2";
-const PROFILE_KEY = "agenda-av-profile-v1";
+const STORAGE_KEY = "agenda-av-web-v3";
+const PROFILE_KEY = "agenda-av-profile-v2";
 const PALETTE = ["#DC2626", "#6B7280", "#2563EB", "#84CC16", "#7C3AED", "#0F766E", "#C2410C", "#A16207"];
 
 const REAL_COMPANIES = [
@@ -149,6 +149,9 @@ function uid() {
 }
 
 function load() {
+  ["agenda-av-web-v1", "agenda-av-web-v2", "agenda-av-profile-v1"].forEach((key) => {
+    localStorage.removeItem(key);
+  });
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) {
     const data = JSON.parse(raw);
@@ -475,6 +478,18 @@ function loadProfile() {
 
 function saveProfile(profile) {
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
+
+function applyUserName() {
+  const name = loadProfile().name.trim();
+  const eyebrow = document.getElementById("appEyebrow");
+  if (eyebrow) eyebrow.textContent = name || "Agenda AV";
+}
+
+function showSetupIfNeeded() {
+  const overlay = document.getElementById("setupOverlay");
+  if (!overlay) return;
+  overlay.classList.toggle("hidden", Boolean(loadProfile().name.trim()));
 }
 
 function renderInvoiceProfile() {
@@ -869,6 +884,7 @@ document.getElementById("invoiceProfileCard").addEventListener("input", () => {
     phone: document.getElementById("profilePhone")?.value.trim() || "",
     payment: document.getElementById("profilePayment")?.value.trim() || "",
   });
+  applyUserName();
 });
 
 document.getElementById("dayPanel").addEventListener("click", (event) => {
@@ -1006,6 +1022,17 @@ document.getElementById("serviceForm").onsubmit = (event) => {
   renderServiceChips();
 };
 
+document.getElementById("setupForm").onsubmit = (event) => {
+  event.preventDefault();
+  const name = event.currentTarget.displayName.value.trim();
+  if (!name) return;
+  saveProfile({ ...loadProfile(), name });
+  document.getElementById("setupOverlay").classList.add("hidden");
+  applyUserName();
+};
+
 load();
 document.querySelector(".phone").dataset.tab = "agenda";
+applyUserName();
+showSetupIfNeeded();
 render();

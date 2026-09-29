@@ -12,21 +12,32 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; min-height: 100%; }
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
 body {
   font-family: "Segoe UI", system-ui, sans-serif;
   background: linear-gradient(180deg, #d7e8e3, #eef3f1 28%);
   color: var(--ink);
+  position: fixed;
+  inset: 0;
+  width: 100%;
 }
 
 .phone {
   max-width: 430px;
-  min-height: 100dvh;
+  height: 100%;
   margin: 0 auto;
   background: var(--bg);
   position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding-top: env(safe-area-inset-top);
-  padding-bottom: calc(88px + env(safe-area-inset-bottom));
   box-shadow: var(--shadow);
 }
 
@@ -58,7 +69,14 @@ h1 { margin: 2px 0 0; font-size: 28px; }
 }
 .phone[data-tab="reports"] .icon-btn { display: none; }
 
-.screen { padding: 8px 16px 24px; }
+.screen {
+  padding: 8px 16px 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
 .hidden { display: none !important; }
 .card {
   background: var(--card);
@@ -220,11 +238,9 @@ h1 { margin: 2px 0 0; font-size: 28px; }
 .segmented button.active { background: white; color: var(--ink); box-shadow: var(--shadow); }
 
 .tabbar {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 0;
-  width: min(430px, 100%);
+  position: static;
+  width: 100%;
+  flex-shrink: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
   background: white;
@@ -247,17 +263,21 @@ h1 { margin: 2px 0 0; font-size: 28px; }
   inset: 0;
   background: rgba(10, 20, 22, 0.45);
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   justify-content: center;
+  overflow: hidden;
   z-index: 20;
 }
 .sheet {
   width: min(430px, 100%);
+  margin-top: auto;
   background: white;
   border-radius: 24px 24px 0 0;
-  padding: 12px 18px 28px;
-  max-height: 92dvh;
+  padding: 12px 18px calc(24px + env(safe-area-inset-bottom));
+  max-height: 100%;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .sheet-handle {
   width: 42px;
@@ -280,6 +300,7 @@ input, textarea, select {
   border-radius: 12px;
   padding: 10px 12px;
   font: inherit;
+  font-size: 16px;
   background: white;
 }
 .dropdown-field {
@@ -393,9 +414,29 @@ select {
 #closeInvoice { width: 100%; margin-top: 8px; }
 .profile-grid label { margin-top: 0; }
 
+.setup-overlay {
+  align-items: center;
+  background: linear-gradient(180deg, #0f766e 0%, #122027 100%);
+  z-index: 40;
+}
+.setup-card {
+  width: min(400px, calc(100% - 32px));
+  background: white;
+  border-radius: 24px;
+  padding: 28px 22px calc(22px + env(safe-area-inset-bottom));
+  box-shadow: var(--shadow);
+}
+.setup-card h2 { margin: 8px 0 8px; }
+.setup-card .primary { width: 100%; margin-top: 8px; }
+
 .print-root { display: none; }
 
 @media print {
+  html, body {
+    position: static;
+    height: auto;
+    overflow: visible;
+  }
   body { background: white; }
   .phone, .overlay, .tabbar { display: none !important; }
   .print-root, .print-root[hidden] {
