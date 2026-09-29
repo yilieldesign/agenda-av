@@ -514,7 +514,7 @@ function companyInvoice(companyId) {
       amountRaw: jobTotal(event),
     })),
     total: money(company.amount),
-    fileName: `Factura-${(company.name || "cliente").replace(/[^\wáéíóúñÁÉÍÓÚÑ]+/gi, "-")}.pdf`,
+    fileName: `Reporte-${(company.name || "cliente").replace(/[^\wáéíóúñÁÉÍÓÚÑ]+/gi, "-")}.pdf`,
   };
 }
 
@@ -528,8 +528,7 @@ function invoiceHTML(inv) {
     </tr>
   `).join("");
   return `
-    <p class="eyebrow">Agenda AV</p>
-    <h2>Factura</h2>
+    <h2>Reporte</h2>
     <p class="muted">${escapeHtml(inv.issued)}</p>
     <p><strong>De:</strong> ${escapeHtml(inv.fromName)}${inv.fromPhone ? ` · ${escapeHtml(inv.fromPhone)}` : ""}</p>
     <p><strong>Para:</strong> ${escapeHtml(inv.companyName)}</p>
@@ -575,8 +574,8 @@ async function sendCurrentInvoice() {
   const file = new File([blob], inv.fileName, { type: "application/pdf" });
   if (navigator.share && navigator.canShare?.({ files: [file] })) {
     await navigator.share({
-      title: `Factura ${inv.companyName}`,
-      text: `Factura ${inv.companyName} · Total ${inv.total}`,
+      title: `Reporte ${inv.companyName}`,
+      text: `Reporte ${inv.companyName} · Total ${inv.total}`,
       files: [file],
     });
     return;

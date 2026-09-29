@@ -39,7 +39,7 @@ enum InvoicePDFRenderer {
     }
 
     static func suggestedFileName(companyName: String) -> String {
-        "Factura-\(fileSlug(companyName: companyName)).pdf"
+        "Reporte-\(fileSlug(companyName: companyName)).pdf"
     }
 
     private static func fileSlug(companyName: String) -> String {
@@ -56,15 +56,8 @@ enum InvoicePDFRenderer {
         UIColor(red: 0.07, green: 0.16, blue: 0.22, alpha: 1).setFill()
         UIRectFill(header)
 
-        "AGENDA AV".draw(
-            at: CGPoint(x: margin, y: 18),
-            withAttributes: [
-                .font: UIFont.systemFont(ofSize: 11, weight: .semibold),
-                .foregroundColor: UIColor.white.withAlphaComponent(0.7)
-            ]
-        )
-        "FACTURA".draw(
-            at: CGPoint(x: margin, y: 38),
+        "REPORTE".draw(
+            at: CGPoint(x: margin, y: 32),
             withAttributes: [
                 .font: UIFont.systemFont(ofSize: 24, weight: .bold),
                 .foregroundColor: UIColor.white
@@ -253,7 +246,7 @@ enum InvoicePDFRenderer {
     }
 
     private static func drawFooter(page: Int) {
-        let text = "Agenda AV  ·  Factura de servicios  ·  \(page)"
+        let text = "Reporte  ·  \(page)"
         let font = UIFont.systemFont(ofSize: 9, weight: .regular)
         let width = (text as NSString).size(withAttributes: [.font: font]).width
         text.draw(

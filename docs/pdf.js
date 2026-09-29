@@ -16,7 +16,7 @@ const InvoicePDF = {
       if (y - h < 56) {
         flushPage();
         y = pageH - 56;
-        text(margin, y, 9, false, "Agenda AV  ·  Factura (cont.)");
+        text(margin, y, 9, false, "Reporte (cont.)");
         y -= 28;
       }
     };
@@ -38,9 +38,8 @@ const InvoicePDF = {
       lines.push("0.07 0.16 0.22 rg");
       lines.push(`0 ${pageH - 108} ${pageW} 108 re f`);
       lines.push("1 1 1 rg");
-      text(margin, pageH - 40, 11, true, "AGENDA AV");
-      text(margin, pageH - 64, 22, true, "FACTURA");
-      text(margin, pageH - 86, 11, false, invoice.issued);
+      text(margin, pageH - 48, 22, true, "REPORTE");
+      text(margin, pageH - 78, 11, false, invoice.issued);
       lines.push("0 0 0 rg");
     };
 
