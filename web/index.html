@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0F766E" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Agenda AV</title>
+  <link rel="stylesheet" href="styles.css?v=es-calendario-2" />
+</head>
+<body>
+  <div class="phone">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Agenda AV</p>
+        <h1 id="screenTitle">Agenda</h1>
+      </div>
+      <button class="icon-btn" id="headerAction" type="button" aria-label="Agendar nuevo trabajo">+</button>
+    </header>
+
+    <main id="agendaScreen" class="screen">
+      <section class="card month-card">
+        <div class="month-nav">
+          <button type="button" id="prevMonth" aria-label="Mes anterior">‹</button>
+          <h2 id="monthLabel"></h2>
+          <button type="button" id="nextMonth" aria-label="Mes siguiente">›</button>
+        </div>
+        <div class="weekdays" id="weekdays"></div>
+        <div class="grid" id="calendarGrid"></div>
+        <div class="legend">
+          <span><i class="swatch available"></i> Disponible</span>
+          <span><i class="swatch occupied"></i> Ocupado</span>
+          <span><i class="dots-mini"></i> Varias empresas</span>
+        </div>
+      </section>
+
+      <section class="card" id="dayPanel"></section>
+    </main>
+
+    <main id="reportsScreen" class="screen hidden">
+      <section class="card">
+        <div class="segmented" id="kindPicker">
+          <button type="button" data-kind="biweekly">Quincenal</button>
+          <button type="button" data-kind="monthly" class="active">Mensual</button>
+          <button type="button" data-kind="custom">Personalizado</button>
+        </div>
+        <div id="periodControls"></div>
+        <p class="muted" id="periodTitle"></p>
+      </section>
+      <section class="metrics" id="metrics"></section>
+      <section class="card" id="invoiceProfileCard"></section>
+      <section class="card" id="companyBreakdown"></section>
+      <section class="card" id="statusBreakdown"></section>
+      <section class="card" id="jobsList"></section>
+      <section class="card">
+        <h3>Exportar e imprimir</h3>
+        <p class="muted">Genera un informe listo para imprimir, guardar como PDF o enviar.</p>
+        <div class="row-actions">
+          <button type="button" class="primary" id="sharePdf">Compartir / PDF</button>
+          <button type="button" class="secondary" id="printPdf">Imprimir</button>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button type="button" class="tab active" data-tab="agenda">
+        <span>📅</span> Agenda
+      </button>
+      <button type="button" class="tab" data-tab="reports">
+        <span>📊</span> Reportes
+      </button>
+    </nav>
+  </div>
+
+  <div class="overlay hidden" id="overlay">
+    <form class="sheet" id="eventForm">
+      <div class="sheet-handle"></div>
+      <h2 id="formTitle">Nuevo trabajo</h2>
+      <label>Inicio
+        <input type="date" name="startDate" required />
+      </label>
+      <label>Fin
+        <input type="date" name="endDate" required />
+      </label>
+      <div class="dropdown-field">
+        <label>Empresa / cliente
+          <select id="companySelect">
+            <option value="">Selecciona una empresa</option>
+          </select>
+        </label>
+        <button type="button" class="text-btn" id="newCompanyBtn">+ Nueva</button>
+      </div>
+      <div class="service-picker">
+        <div class="row-between">
+          <strong>Servicios</strong>
+          <button type="button" class="text-btn" id="newServiceBtn">+ Nuevo</button>
+        </div>
+        <p class="muted">Marca uno o varios. El monto es único para este trabajo.</p>
+        <div id="serviceChips"></div>
+      </div>
+      <label>Monto a cobrar
+        <input type="number" name="amount" min="0" step="0.01" inputmode="decimal" required />
+      </label>
+      <div class="segmented">
+        <button type="button" class="pay-btn active" data-status="pending">Pendiente</button>
+        <button type="button" class="pay-btn" data-status="paid">Pagado</button>
+      </div>
+      <label>Notas
+        <textarea name="notes" rows="3" placeholder="Rol, lugar, equipamiento…"></textarea>
+      </label>
+      <p class="error hidden" id="formError"></p>
+      <div class="row-actions">
+        <button type="button" class="secondary" id="cancelForm">Cancelar</button>
+        <button type="submit" class="primary">Guardar</button>
+      </div>
+      <button type="button" class="danger hidden" id="deleteEvent">Eliminar trabajo</button>
+    </form>
+  </div>
+
+  <div class="overlay hidden" id="companyOverlay">
+    <form class="sheet" id="companyForm">
+      <h2 id="companyFormTitle">Nueva empresa</h2>
+      <label>Nombre
+        <input type="text" name="name" required />
+      </label>
+      <label>Color en el calendario
+        <input type="color" name="color" value="#0F766E" />
+      </label>
+      <div class="row-actions">
+        <button type="button" class="secondary" id="cancelCompany">Cancelar</button>
+        <button type="submit" class="primary">Guardar</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="overlay hidden" id="invoiceOverlay">
+    <div class="sheet invoice-sheet">
+      <div class="sheet-handle"></div>
+      <div id="invoicePreview"></div>
+      <div class="row-actions">
+        <button type="button" class="secondary" id="printInvoice">Imprimir</button>
+        <button type="button" class="primary" id="sendInvoice">Enviar PDF</button>
+      </div>
+      <button type="button" class="secondary" id="closeInvoice">Cerrar</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="serviceOverlay">
+    <form class="sheet" id="serviceForm">
+      <h2>Nuevo servicio</h2>
+      <label>Nombre del servicio
+        <input type="text" name="name" required placeholder="Ej. Camarógrafo, Streaming, Gaffer" />
+      </label>
+      <p class="muted">Queda guardado en la lista para agendarlo más rápido la próxima vez.</p>
+      <div class="row-actions">
+        <button type="button" class="secondary" id="cancelService">Cancelar</button>
+        <button type="submit" class="primary">Guardar</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="printRoot" class="print-root" hidden></div>
+  <script src="pdf.js"></script>
+  <script src="app.js?v=es-calendario-2"></script>
+</body>
+</html>
