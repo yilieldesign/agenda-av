@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="manifest" href="manifest.webmanifest?v=rd-monto" />
-  <link rel="stylesheet" href="styles.css?v=rd-monto" />
+  <link rel="manifest" href="manifest.webmanifest?v=monto-lista" />
+  <link rel="stylesheet" href="styles.css?v=monto-lista" />
 </head>
 <body>
   <div class="phone">
@@ -112,9 +112,15 @@
         <div id="serviceChips"></div>
       </div>
       <label>Monto por día
-        <div class="money-field">
+        <div class="money-field" id="amountSelectWrap">
           <span class="money-prefix">RD$</span>
-          <input type="text" name="amount" inputmode="decimal" enterkeyhint="done" autocomplete="off" required placeholder="0" />
+          <select id="amountSelect" name="amountSelect" aria-label="Monto por día">
+            <option value=""></option>
+          </select>
+        </div>
+        <div class="money-field hidden" id="otherAmountWrap">
+          <span class="money-prefix">RD$</span>
+          <input type="text" name="amount" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="" />
         </div>
       </label>
       <p class="muted" id="amountHint"></p>
@@ -209,8 +215,8 @@
 
   <div id="reminderToast" class="reminder-toast hidden" role="status"></div>
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="pdf.js?v=rd-monto"></script>
-  <script src="reminders.js?v=rd-monto"></script>
-  <script src="app.js?v=rd-monto"></script>
+  <script src="pdf.js?v=monto-lista"></script>
+  <script src="reminders.js?v=monto-lista"></script>
+  <script src="app.js?v=monto-lista"></script>
 </body>
 </html>

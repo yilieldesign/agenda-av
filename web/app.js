@@ -34,7 +34,7 @@ const state = {
   selectedServiceIds: [],
   editingCompanyId: null,
   editingServiceId: null,
-  lastAmount: 0,
+  savedAmounts: [],
   activeInvoiceId: null,
   previewMode: "company",
   reminderKinds: new Set(),
@@ -89,6 +89,88 @@ function formatAmountInput(amount) {
   const n = Number(amount);
   if (!Number.isFinite(n)) return "";
   return Number.isInteger(n) ? String(n) : String(n);
+}
+
+function formatAmountOption(amount) {
+  const n = Number(amount) || 0;
+  return new Intl.NumberFormat("es-DO", {
+    minimumFractionDigits: n % 1 ? 2 : 0,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
+function uniqueSavedAmounts() {
+  const listed = (state.savedAmounts || []).map(parseAmount);
+  const fromEvents = (state.events || []).map((event) => parseAmount(event.amount));
+  return [...new Set([...listed, ...fromEvents].filter((n) => n > 0))].sort((a, b) => b - a);
+}
+
+function rememberAmount(amount) {
+  const n = parseAmount(amount);
+  if (!(n > 0)) return;
+  state.savedAmounts = [n, ...uniqueSavedAmounts().filter((item) => item !== n)];
+}
+
+function formAmountValue() {
+  const select = document.getElementById("amountSelect");
+  const form = document.getElementById("eventForm");
+  if (select && select.value && select.value !== "__other") {
+    return parseAmount(select.value);
+  }
+  return parseAmount(form?.amount?.value);
+}
+
+function showOtherAmount(show) {
+  const wrap = document.getElementById("otherAmountWrap");
+  const selectWrap = document.getElementById("amountSelectWrap");
+  const amounts = uniqueSavedAmounts();
+  if (selectWrap) selectWrap.classList.toggle("hidden", amounts.length === 0);
+  if (wrap) wrap.classList.toggle("hidden", amounts.length > 0 && !show);
+}
+
+function renderAmountSelect(selected) {
+  const select = document.getElementById("amountSelect");
+  const form = document.getElementById("eventForm");
+  if (!select || !form) return;
+  const amounts = uniqueSavedAmounts();
+  const current = selected === "" || selected == null ? "" : parseAmount(selected);
+  const inList = current !== "" && amounts.includes(current);
+  select.innerHTML = [
+    `<option value=""></option>`,
+    ...amounts.map((n) => `<option value="${n}">${formatAmountOption(n)}</option>`),
+    `<option value="__other">Otro monto…</option>`,
+  ].join("");
+  if (current === "") {
+    select.value = "";
+    form.amount.value = "";
+    showOtherAmount(amounts.length === 0);
+  } else if (inList) {
+    select.value = String(current);
+    form.amount.value = formatAmountInput(current);
+    showOtherAmount(false);
+  } else {
+    select.value = "__other";
+    form.amount.value = formatAmountInput(current);
+    showOtherAmount(true);
+  }
+}
+
+function onAmountSelectChange() {
+  const select = document.getElementById("amountSelect");
+  const form = document.getElementById("eventForm");
+  if (!select || !form) return;
+  if (select.value === "__other") {
+    form.amount.value = "";
+    showOtherAmount(true);
+    form.amount.focus();
+  } else if (!select.value) {
+    form.amount.value = "";
+    showOtherAmount(false);
+  } else {
+    form.amount.value = formatAmountInput(select.value);
+    showOtherAmount(false);
+  }
+  updateAmountHint();
 }
 
 function toISODate(date) {
@@ -169,7 +251,7 @@ function updateAmountHint() {
     return;
   }
   const days = dayCount(start, end || start);
-  const rate = parseAmount(form.amount.value);
+  const rate = formAmountValue();
   if (days === 1) {
     hint.textContent = rate
       ? `Total a cobrar: ${money(rate)} (1 día)`
@@ -195,7 +277,8 @@ function load() {
     state.companies = data.companies || [];
     state.events = data.events || [];
     state.services = data.services || [];
-    state.lastAmount = parseAmount(data.lastAmount);
+    state.savedAmounts = (data.savedAmounts || []).map(parseAmount).filter((n) => n > 0);
+    if (data.lastAmount) rememberAmount(data.lastAmount);
   } else {
     seed();
   }
@@ -206,11 +289,8 @@ function load() {
     event.reminders = AgendaReminders.normalizeReminders(event.reminders);
     event.activityName = event.activityName || "";
     event.amount = parseAmount(event.amount);
+    rememberAmount(event.amount);
   });
-  if (!state.lastAmount) {
-    const recent = [...state.events].reverse().find((event) => parseAmount(event.amount) > 0);
-    if (recent) state.lastAmount = parseAmount(recent.amount);
-  }
   persist();
 }
 
@@ -219,7 +299,7 @@ function persist() {
     companies: state.companies,
     events: state.events,
     services: state.services,
-    lastAmount: state.lastAmount,
+    savedAmounts: uniqueSavedAmounts(),
   }));
 }
 
@@ -1209,9 +1289,7 @@ function openEventForm(eventId) {
     : [];
   form.startDate.value = event?.startDate || state.selected;
   form.endDate.value = event?.endDate || state.selected;
-  form.amount.value = event
-    ? formatAmountInput(event.amount)
-    : (state.lastAmount ? formatAmountInput(state.lastAmount) : "");
+  renderAmountSelect(event ? event.amount : "");
   form.activityName.value = event?.activityName || "";
   form.notes.value = event?.notes || "";
   document.getElementById("formTitle").textContent = event ? "Editar trabajo" : "Nuevo trabajo";
@@ -1489,6 +1567,10 @@ document.getElementById("eventForm").addEventListener("input", (event) => {
   }
 });
 document.getElementById("eventForm").addEventListener("change", (event) => {
+  if (event.target.id === "amountSelect") {
+    onAmountSelectChange();
+    return;
+  }
   if (["startDate", "endDate"].includes(event.target.name)) {
     updateAmountHint();
   }
@@ -1514,6 +1596,19 @@ document.getElementById("eventForm").onsubmit = async (event) => {
     error.classList.remove("hidden");
     return;
   }
+  const amount = formAmountValue();
+  const select = document.getElementById("amountSelect");
+  const typed = String(form.amount.value || "").trim();
+  if ((!select?.value || select.value === "__other") && !typed && uniqueSavedAmounts().length) {
+    error.textContent = "Selecciona o escribe el monto.";
+    error.classList.remove("hidden");
+    return;
+  }
+  if (!select?.value && !typed && !uniqueSavedAmounts().length) {
+    error.textContent = "Escribe el monto.";
+    error.classList.remove("hidden");
+    return;
+  }
   const startDate = form.startDate.value;
   const endDate = form.endDate.value < startDate ? startDate : form.endDate.value;
   const previous = state.events.find((e) => e.id === state.editingId);
@@ -1531,7 +1626,7 @@ document.getElementById("eventForm").onsubmit = async (event) => {
     serviceIds: [...state.selectedServiceIds],
     projectName: names.join(", "),
     activityName: form.activityName.value.trim(),
-    amount: parseAmount(form.amount.value),
+    amount,
     paymentStatus: state.paymentStatus,
     notes: form.notes.value.trim(),
     companyId: state.selectedCompanyId,
@@ -1542,7 +1637,7 @@ document.getElementById("eventForm").onsubmit = async (event) => {
   } else {
     state.events.push(payload);
   }
-  if (payload.amount > 0) state.lastAmount = payload.amount;
+  rememberAmount(payload.amount);
   persist();
   closeEventForm();
   render();

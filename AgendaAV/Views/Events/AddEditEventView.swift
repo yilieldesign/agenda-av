@@ -4,6 +4,7 @@ import SwiftUI
 struct AddEditEventView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Query(sort: \WorkEvent.startDate, order: .reverse) private var events: [WorkEvent]
     @Query(sort: \Company.name) private var companies: [Company]
     @Query(sort: \CatalogService.name) private var services: [CatalogService]
 
@@ -13,6 +14,7 @@ struct AddEditEventView: View {
     @State private var endDate: Date
     @State private var selectedServiceIds: Set<UUID> = []
     @State private var amount: Decimal
+    @State private var amountPick: String
     @State private var paymentStatus: PaymentStatus
     @State private var notes: String
     @State private var activityName: String
@@ -39,7 +41,8 @@ struct AddEditEventView: View {
             _startDate = State(initialValue: day.startOfDay)
             _endDate = State(initialValue: day.startOfDay)
             _selectedServiceIds = State(initialValue: [])
-            _amount = State(initialValue: CurrencyFormat.lastAmount)
+            _amount = State(initialValue: 0)
+            _amountPick = State(initialValue: "")
             _paymentStatus = State(initialValue: .pending)
             _notes = State(initialValue: "")
             _activityName = State(initialValue: "")
@@ -50,6 +53,7 @@ struct AddEditEventView: View {
             _endDate = State(initialValue: event.endDate)
             _selectedServiceIds = State(initialValue: [])
             _amount = State(initialValue: event.amount)
+            _amountPick = State(initialValue: Self.amountKey(event.amount))
             _paymentStatus = State(initialValue: event.paymentStatus)
             _notes = State(initialValue: event.notes)
             _activityName = State(initialValue: event.activityName)
@@ -129,16 +133,30 @@ struct AddEditEventView: View {
                 }
 
                 Section("Cobro") {
-                    HStack {
-                        Text("RD$")
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.accentColor)
-                        TextField(
-                            "Monto por día",
-                            value: $amount,
-                            format: .number.precision(.fractionLength(0...2))
-                        )
-                        .keyboardType(.decimalPad)
+                    if !listedAmounts.isEmpty {
+                        Picker("Monto por día", selection: $amountPick) {
+                            Text("").tag("")
+                            ForEach(listedAmounts, id: \.self) { value in
+                                Text("RD$ \(CurrencyFormat.plainString(from: value))").tag(Self.amountKey(value))
+                            }
+                            Text("Otro monto…").tag("__other")
+                        }
+                        .onChange(of: amountPick) { _, key in
+                            applyAmountPick(key)
+                        }
+                    }
+                    if listedAmounts.isEmpty || amountPick == "__other" {
+                        HStack {
+                            Text("RD$")
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.accentColor)
+                            TextField(
+                                listedAmounts.isEmpty ? "Monto por día" : "Otro monto",
+                                value: $amount,
+                                format: .number.precision(.fractionLength(0...2))
+                            )
+                            .keyboardType(.decimalPad)
+                        }
                     }
                     if Calendar.current.inclusiveDayCount(from: startDate, to: endDate) > 1 {
                         Text("Total a cobrar: \(CurrencyFormat.string(from: amount * Decimal(Calendar.current.inclusiveDayCount(from: startDate, to: endDate))))")
@@ -219,6 +237,7 @@ struct AddEditEventView: View {
             }
             .onAppear {
                 syncServiceSelection()
+                if isEditing { syncAmountPick() }
                 if !reminderKinds.isEmpty {
                     Task { notifyDenied = await EventReminderScheduler.permissionDenied() }
                 }
@@ -264,6 +283,35 @@ struct AddEditEventView: View {
 
     private var selectedCompany: Company? {
         companies.first { $0.uuid == selectedCompanyId }
+    }
+
+    private var listedAmounts: [Decimal] {
+        CurrencyFormat.uniqued(CurrencyFormat.savedAmounts + events.map(\.amount))
+    }
+
+    private static func amountKey(_ amount: Decimal) -> String {
+        (amount as NSDecimalNumber).stringValue
+    }
+
+    private func applyAmountPick(_ key: String) {
+        if key.isEmpty {
+            amount = 0
+            return
+        }
+        if key == "__other" {
+            amount = 0
+            return
+        }
+        amount = Decimal(string: key) ?? 0
+    }
+
+    private func syncAmountPick() {
+        let key = Self.amountKey(amount)
+        if listedAmounts.contains(where: { Self.amountKey($0) == key }) {
+            amountPick = key
+        } else {
+            amountPick = "__other"
+        }
     }
 
     private var selectedServiceNames: [String] {
@@ -374,6 +422,10 @@ struct AddEditEventView: View {
             validationMessage = "Selecciona o crea la empresa contratante."
             return
         }
+        if !listedAmounts.isEmpty && amountPick.isEmpty {
+            validationMessage = "Selecciona o escribe el monto."
+            return
+        }
         guard amount >= 0 else {
             validationMessage = "El monto no puede ser negativo."
             return
@@ -420,7 +472,7 @@ struct AddEditEventView: View {
         }
 
         if amount > 0 {
-            CurrencyFormat.lastAmount = amount
+            CurrencyFormat.remember(amount)
         }
         try? modelContext.save()
         dismiss()
