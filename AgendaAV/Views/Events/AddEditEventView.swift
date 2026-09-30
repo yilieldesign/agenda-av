@@ -39,7 +39,7 @@ struct AddEditEventView: View {
             _startDate = State(initialValue: day.startOfDay)
             _endDate = State(initialValue: day.startOfDay)
             _selectedServiceIds = State(initialValue: [])
-            _amount = State(initialValue: 0)
+            _amount = State(initialValue: CurrencyFormat.lastAmount)
             _paymentStatus = State(initialValue: .pending)
             _notes = State(initialValue: "")
             _activityName = State(initialValue: "")
@@ -129,12 +129,17 @@ struct AddEditEventView: View {
                 }
 
                 Section("Cobro") {
-                    TextField(
-                        "Monto por día",
-                        value: $amount,
-                        format: .currency(code: CurrencyFormat.code)
-                    )
-                    .keyboardType(.decimalPad)
+                    HStack {
+                        Text("RD$")
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.accentColor)
+                        TextField(
+                            "Monto por día",
+                            value: $amount,
+                            format: .number.precision(.fractionLength(0...2))
+                        )
+                        .keyboardType(.decimalPad)
+                    }
                     if Calendar.current.inclusiveDayCount(from: startDate, to: endDate) > 1 {
                         Text("Total a cobrar: \(CurrencyFormat.string(from: amount * Decimal(Calendar.current.inclusiveDayCount(from: startDate, to: endDate))))")
                             .font(.caption)
@@ -414,6 +419,9 @@ struct AddEditEventView: View {
             EventReminderScheduler.reschedule(event: event)
         }
 
+        if amount > 0 {
+            CurrencyFormat.lastAmount = amount
+        }
         try? modelContext.save()
         dismiss()
     }

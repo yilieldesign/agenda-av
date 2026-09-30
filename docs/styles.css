@@ -334,6 +334,30 @@ input, textarea, select {
   font-size: 16px;
   background: white;
 }
+.money-field {
+  display: flex;
+  align-items: center;
+  margin-top: 6px;
+  border: 1px solid #d7e0dc;
+  border-radius: 12px;
+  background: white;
+  overflow: hidden;
+}
+.money-prefix {
+  padding: 10px 0 10px 12px;
+  font-weight: 800;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.money-field input {
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  padding-left: 8px;
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+}
 .dropdown-field {
   display: flex;
   align-items: flex-end;

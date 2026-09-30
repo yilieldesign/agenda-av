@@ -34,6 +34,7 @@ const state = {
   selectedServiceIds: [],
   editingCompanyId: null,
   editingServiceId: null,
+  lastAmount: 0,
   activeInvoiceId: null,
   previewMode: "company",
   reminderKinds: new Set(),
@@ -60,17 +61,34 @@ function formatDate(date, options) {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
 }
 
-function currencyCode() {
-  const region = (localeTag().split("-")[1] || "DO").toUpperCase();
-  return { DO: "DOP", MX: "MXN", CL: "CLP", AR: "ARS", CO: "COP", PE: "PEN", US: "USD" }[region] || "DOP";
+function money(amount) {
+  const n = Number(amount) || 0;
+  const formatted = new Intl.NumberFormat("es-DO", {
+    minimumFractionDigits: n % 1 ? 2 : 0,
+    maximumFractionDigits: 2,
+  }).format(n);
+  return `RD$${formatted}`;
 }
 
-function money(amount) {
-  return new Intl.NumberFormat(localeTag(), {
-    style: "currency",
-    currency: currencyCode(),
-    maximumFractionDigits: 2,
-  }).format(Number(amount) || 0);
+function parseAmount(value) {
+  const raw = String(value ?? "").replace(/RD\$/gi, "").replace(/\s/g, "").trim();
+  if (!raw) return 0;
+  const lastComma = raw.lastIndexOf(",");
+  const lastDot = raw.lastIndexOf(".");
+  let normalized = raw.replace(/[^\d.,-]/g, "");
+  if (lastComma > lastDot) {
+    normalized = normalized.replace(/\./g, "").replace(",", ".");
+  } else {
+    normalized = normalized.replace(/,/g, "");
+  }
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatAmountInput(amount) {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return "";
+  return Number.isInteger(n) ? String(n) : String(n);
 }
 
 function toISODate(date) {
@@ -151,7 +169,7 @@ function updateAmountHint() {
     return;
   }
   const days = dayCount(start, end || start);
-  const rate = Number(form.amount.value) || 0;
+  const rate = parseAmount(form.amount.value);
   if (days === 1) {
     hint.textContent = rate
       ? `Total a cobrar: ${money(rate)} (1 día)`
@@ -177,6 +195,7 @@ function load() {
     state.companies = data.companies || [];
     state.events = data.events || [];
     state.services = data.services || [];
+    state.lastAmount = parseAmount(data.lastAmount);
   } else {
     seed();
   }
@@ -186,7 +205,12 @@ function load() {
   state.events.forEach((event) => {
     event.reminders = AgendaReminders.normalizeReminders(event.reminders);
     event.activityName = event.activityName || "";
+    event.amount = parseAmount(event.amount);
   });
+  if (!state.lastAmount) {
+    const recent = [...state.events].reverse().find((event) => parseAmount(event.amount) > 0);
+    if (recent) state.lastAmount = parseAmount(recent.amount);
+  }
   persist();
 }
 
@@ -195,6 +219,7 @@ function persist() {
     companies: state.companies,
     events: state.events,
     services: state.services,
+    lastAmount: state.lastAmount,
   }));
 }
 
@@ -1184,7 +1209,9 @@ function openEventForm(eventId) {
     : [];
   form.startDate.value = event?.startDate || state.selected;
   form.endDate.value = event?.endDate || state.selected;
-  form.amount.value = event?.amount ?? "";
+  form.amount.value = event
+    ? formatAmountInput(event.amount)
+    : (state.lastAmount ? formatAmountInput(state.lastAmount) : "");
   form.activityName.value = event?.activityName || "";
   form.notes.value = event?.notes || "";
   document.getElementById("formTitle").textContent = event ? "Editar trabajo" : "Nuevo trabajo";
@@ -1504,7 +1531,7 @@ document.getElementById("eventForm").onsubmit = async (event) => {
     serviceIds: [...state.selectedServiceIds],
     projectName: names.join(", "),
     activityName: form.activityName.value.trim(),
-    amount: Number(form.amount.value) || 0,
+    amount: parseAmount(form.amount.value),
     paymentStatus: state.paymentStatus,
     notes: form.notes.value.trim(),
     companyId: state.selectedCompanyId,
@@ -1515,6 +1542,7 @@ document.getElementById("eventForm").onsubmit = async (event) => {
   } else {
     state.events.push(payload);
   }
+  if (payload.amount > 0) state.lastAmount = payload.amount;
   persist();
   closeEventForm();
   render();
