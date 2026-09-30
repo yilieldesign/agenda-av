@@ -203,6 +203,16 @@ h1 { margin: 2px 0 0; font-size: 28px; }
 .primary { background: var(--accent); color: white; }
 .secondary { background: #e8eeec; color: var(--ink); }
 .danger { background: #fee2e2; color: var(--danger); width: 100%; margin-top: 8px; }
+.google-setup { margin-top: 12px; }
+.google-setup summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+}
+.google-setup code {
+  font-size: 12px;
+  word-break: break-all;
+}
 
 .metrics {
   display: grid;

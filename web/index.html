@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="manifest" href="manifest.webmanifest?v=ics-import" />
-  <link rel="stylesheet" href="styles.css?v=ics-import" />
+  <link rel="manifest" href="manifest.webmanifest?v=google-id" />
+  <link rel="stylesheet" href="styles.css?v=google-id" />
 </head>
 <body>
   <div class="phone">
@@ -51,6 +51,18 @@
         </div>
         <div id="periodControls"></div>
         <p class="muted" id="periodTitle"></p>
+      </section>
+      <section class="card" id="googleCard">
+        <h3>Google Calendar</h3>
+        <p class="muted">Pega aquí el ID de cliente que copiaste de Google. Luego Guardar ID y Conectar.</p>
+        <div id="googleClientWrap">
+          <label>Pega aquí el ID de cliente
+            <input id="googleClientId" type="text" autocomplete="off" inputmode="text" placeholder="….apps.googleusercontent.com" />
+          </label>
+          <button type="button" class="secondary" id="saveGoogleClient">Guardar ID</button>
+        </div>
+        <p class="muted" id="googleStatus"></p>
+        <div class="row-actions" id="googleActions"></div>
       </section>
       <section class="metrics" id="metrics"></section>
       <section class="card hidden" id="monthlyBreakdown"></section>
@@ -236,9 +248,10 @@
 
   <div id="reminderToast" class="reminder-toast hidden" role="status"></div>
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="ics.js?v=ics-import"></script>
-  <script src="pdf.js?v=ics-import"></script>
-  <script src="reminders.js?v=ics-import"></script>
-  <script src="app.js?v=ics-import"></script>
+  <script src="ics.js?v=google-id"></script>
+  <script src="google.js?v=google-id"></script>
+  <script src="pdf.js?v=google-id"></script>
+  <script src="reminders.js?v=google-id"></script>
+  <script src="app.js?v=google-id"></script>
 </body>
 </html>

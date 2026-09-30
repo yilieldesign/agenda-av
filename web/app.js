@@ -713,6 +713,7 @@ function resetAppToFirstUse() {
   [
     STORAGE_KEY,
     PROFILE_KEY,
+    "agenda-av-google-v1",
     "agenda-av-web-v1",
     "agenda-av-web-v2",
     "agenda-av-profile-v1",
@@ -767,6 +768,17 @@ function importParsedItems(items) {
   return { added, skipped, created };
 }
 
+function applyImportedItems(items, goToAgenda) {
+  const result = importParsedItems(items);
+  if (goToAgenda && result.created[0]) {
+    state.month = startOfMonth(parseISO(result.created[0].startDate));
+    state.selected = result.created[0].startDate;
+    setTab("agenda");
+  }
+  render();
+  return result;
+}
+
 async function importIcsFile(file) {
   if (!file) return;
   if (/\.zip$/i.test(file.name) || /zip/i.test(file.type || "")) {
@@ -789,17 +801,115 @@ async function importIcsFile(file) {
     window.alert("No se encontraron eventos en el archivo.");
     return;
   }
-  const { added, skipped, created } = importParsedItems(items);
-  if (created[0]) {
-    state.month = startOfMonth(parseISO(created[0].startDate));
-    state.selected = created[0].startDate;
-    setTab("agenda");
-  }
-  render();
+  const { added, skipped } = applyImportedItems(items, true);
   if (added) {
     showReminderToast(`Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.`);
   } else if (skipped) {
     showReminderToast("Esos eventos ya estaban en la agenda.");
+  }
+}
+
+function renderGoogleCard() {
+  if (typeof AgendaGoogle === "undefined") return;
+  const status = document.getElementById("googleStatus");
+  const actions = document.getElementById("googleActions");
+  const clientInput = document.getElementById("googleClientId");
+  if (!status || !actions) return;
+  if (clientInput && document.activeElement !== clientInput) {
+    clientInput.value = AgendaGoogle.clientId();
+  }
+  const data = AgendaGoogle.load();
+  const wrap = document.getElementById("googleClientWrap");
+  if (wrap) wrap.classList.toggle("hidden", Boolean(data.granted));
+  if (!AgendaGoogle.clientId()) {
+    status.textContent = "Copia el ID desde Google Cloud y pégalo arriba.";
+    actions.innerHTML = "";
+    return;
+  }
+  if (data.granted) {
+    let when = "";
+    if (data.lastSync) {
+      const synced = new Date(data.lastSync);
+      if (!Number.isNaN(synced.getTime())) {
+        when = synced.toLocaleString(localeTag(), { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+      }
+    }
+    status.textContent = when
+      ? `Conectado. Última sincronización: ${when}.`
+      : "Conectado. Toca Sincronizar para traer los eventos.";
+    actions.innerHTML = `
+      <button type="button" class="primary" id="googleSync">Sincronizar</button>
+      <button type="button" class="secondary" id="googleDisconnect">Desconectar</button>
+    `;
+    return;
+  }
+  status.textContent = "Listo. Toca conectar y acepta el permiso de solo lectura.";
+  actions.innerHTML = `<button type="button" class="primary" id="googleConnect">Conectar Google Calendar</button>`;
+}
+
+function saveGoogleClientId() {
+  if (typeof AgendaGoogle === "undefined") return;
+  const value = document.getElementById("googleClientId")?.value.trim() || "";
+  const data = AgendaGoogle.load();
+  data.clientId = value;
+  AgendaGoogle.save(data);
+  renderGoogleCard();
+  showReminderToast(value ? "ID guardado. Ya puedes conectar Google." : "Se quitó el ID de cliente.");
+}
+
+async function connectGoogle() {
+  if (typeof AgendaGoogle === "undefined") return;
+  if (!AgendaGoogle.clientId()) {
+    document.getElementById("googleClientId")?.focus();
+    window.alert("Primero pega el ID de cliente en Configurar conexión.");
+    return;
+  }
+  try {
+    const items = await AgendaGoogle.connect();
+    const { added } = applyImportedItems(items, true);
+    renderGoogleCard();
+    showReminderToast(
+      added
+        ? `Conectado. Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.`
+        : "Conectado. No había eventos nuevos."
+    );
+  } catch (err) {
+    window.alert(err.message || "No se pudo conectar con Google.");
+    renderGoogleCard();
+  }
+}
+
+function disconnectGoogle() {
+  if (typeof AgendaGoogle === "undefined") return;
+  if (!window.confirm("¿Desconectar Google Calendar?\n\nLos trabajos ya importados se quedan en la agenda.")) return;
+  AgendaGoogle.disconnect();
+  renderGoogleCard();
+  showReminderToast("Google Calendar desconectado.");
+}
+
+async function syncGoogle(interactive) {
+  if (typeof AgendaGoogle === "undefined") return;
+  try {
+    const items = interactive ? await AgendaGoogle.sync() : await AgendaGoogle.syncIfFresh();
+    if (!interactive && !items.length) return;
+    const { added, skipped } = applyImportedItems(items, interactive);
+    renderGoogleCard();
+    if (!interactive) {
+      if (added) {
+        showReminderToast(`Google: ${added} trabajo${added === 1 ? "" : "s"} nuevo${added === 1 ? "" : "s"}. Complétalos en la agenda.`);
+      }
+      return;
+    }
+    if (added) {
+      showReminderToast(`Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.`);
+    } else if (skipped) {
+      showReminderToast("No hay eventos nuevos en Google.");
+    } else {
+      showReminderToast("No se encontraron eventos en Google Calendar.");
+    }
+  } catch (err) {
+    if (interactive) window.alert(err.message || "No se pudo sincronizar con Google.");
+    renderGoogleCard();
   }
 }
 
@@ -1124,6 +1234,7 @@ function renderReports() {
       return `<div class="breakdown-row"><div><strong>${escapeHtml(eventReportLabel(event))}</strong><div class="muted">${event.startDate}${event.startDate !== event.endDate ? " – " + event.endDate : ""}${hours ? ` · ${escapeHtml(hours)}` : ""} · ${escapeHtml(company?.name || "")} · ${paid ? "Historial" : "Pendiente"}</div></div><strong>${money(jobTotal(event))}</strong></div>`;
     }).join("") || `<p class="muted">Ajusta el rango para ver resultados.</p>`}
   `;
+  renderGoogleCard();
 }
 
 function reportHTML(summary) {
@@ -1673,6 +1784,12 @@ document.getElementById("icsFile").addEventListener("change", (event) => {
   event.target.value = "";
   importIcsFile(file).catch(() => window.alert("No se pudo importar el calendario."));
 });
+document.getElementById("googleCard")?.addEventListener("click", (event) => {
+  if (event.target.id === "googleConnect") connectGoogle();
+  if (event.target.id === "googleSync") syncGoogle(true);
+  if (event.target.id === "googleDisconnect") disconnectGoogle();
+  if (event.target.id === "saveGoogleClient") saveGoogleClientId();
+});
 document.getElementById("invoiceProfileCard").addEventListener("input", () => {
   saveProfile({
     name: document.getElementById("profileName")?.value.trim() || "",
@@ -1916,3 +2033,5 @@ showSetupIfNeeded();
 registerReminderWorker();
 render();
 startReminderWatch();
+renderGoogleCard();
+syncGoogle(false);
