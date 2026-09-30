@@ -37,13 +37,91 @@ const AgendaGoogle = {
     return Boolean(this.load().granted && this.clientId());
   },
 
+  needsRedirect() {
+    const ua = navigator.userAgent || "";
+    return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  },
+
+  redirectUri() {
+    const url = new URL(window.location.href);
+    const path = url.pathname.endsWith("/") || /\.html$/i.test(url.pathname)
+      ? url.pathname
+      : `${url.pathname}/`;
+    return `${url.origin}${path}`;
+  },
+
+  explainError(err) {
+    const raw = String(err?.error_description || err?.error || err?.message || err?.type || err || "");
+    const lower = raw.toLowerCase();
+    if (/access_denied|403|not completed the google verification|has not completed|access blocked|app is currently being tested|unverified/.test(lower)) {
+      return "Google no dejó entrar ese correo. En console.cloud.google.com abre la pantalla de consentimiento, agrégalo como usuario de prueba (el Gmail exacto que estás eligiendo) y vuelve a conectar.";
+    }
+    if (/redirect_uri_mismatch|origin_mismatch/.test(lower)) {
+      return "Esta dirección no coincide con la del ID de cliente. En Google Cloud, orígenes JavaScript: https://yilieldesign.github.io  URI de redirección: https://yilieldesign.github.io/agenda-av/";
+    }
+    if (/popup_failed_to_open|popup_blocked/.test(lower)) {
+      return "El teléfono bloqueó la ventana de Google. Toca Conectar otra vez; se abrirá la página de Google en esta misma pestaña.";
+    }
+    if (/popup_closed/.test(lower)) {
+      return "Se cerró la ventana de Google antes de aceptar. Toca Conectar otra vez y espera a pulsar Permitir.";
+    }
+    if (/idpiframe_initialization_failed|cookies/.test(lower)) {
+      return "Safari está bloqueando Google. En Ajustes → Safari, permite ventanas emergentes y no bloquees cookies de accounts.google.com.";
+    }
+    if (raw && raw !== "[object Object]") return raw;
+    return "No se pudo conectar con Google. Revisa que el correo esté como usuario de prueba y vuelve a intentar.";
+  },
+
+  consumeRedirect() {
+    const fromHash = new URLSearchParams(String(window.location.hash || "").replace(/^#/, ""));
+    const fromQuery = new URLSearchParams(window.location.search);
+    const error = fromHash.get("error") || fromQuery.get("error");
+    const errorDesc = fromHash.get("error_description") || fromQuery.get("error_description") || "";
+    const token = fromHash.get("access_token");
+    const state = fromHash.get("state") || fromQuery.get("state");
+    if (!error && !token) return null;
+    if (state && state !== "agenda-google") return null;
+    const clean = new URL(window.location.href);
+    clean.hash = "";
+    clean.searchParams.delete("error");
+    clean.searchParams.delete("error_description");
+    clean.searchParams.delete("state");
+    history.replaceState(null, "", `${clean.pathname}${clean.search}`);
+    if (error) {
+      let desc = errorDesc;
+      try { desc = decodeURIComponent(errorDesc.replace(/\+/g, " ")); } catch (_) { /* keep raw */ }
+      throw new Error(this.explainError({ message: `${error} ${desc}` }));
+    }
+    if (!token) return null;
+    const data = this.load();
+    data.accessToken = token;
+    data.expiresAt = Date.now() + (Number(fromHash.get("expires_in")) || 3600) * 1000;
+    data.granted = true;
+    this.save(data);
+    return "token";
+  },
+
+  startRedirect(prompt) {
+    const params = new URLSearchParams({
+      client_id: this.clientId(),
+      redirect_uri: this.redirectUri(),
+      response_type: "token",
+      scope: this.SCOPE,
+      include_granted_scopes: "true",
+      prompt: prompt || "consent",
+      state: "agenda-google",
+    });
+    window.location.assign(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+  },
+
   async ensureScript() {
     if (window.google?.accounts?.oauth2) return;
     await new Promise((resolve, reject) => {
       const existing = document.querySelector("script[data-google-gis]");
       if (existing) {
+        if (window.google?.accounts?.oauth2) return resolve();
         existing.addEventListener("load", () => resolve());
-        existing.addEventListener("error", () => reject(new Error("gis")));
+        existing.addEventListener("error", () => reject(new Error("No se pudo cargar Google.")));
         return;
       }
       const script = document.createElement("script");
@@ -61,13 +139,22 @@ const AgendaGoogle = {
     if (!clientId) {
       return Promise.reject(new Error("Falta el ID de cliente de Google."));
     }
+    if (this.needsRedirect()) {
+      this.startRedirect(prompt || "consent");
+      return new Promise(() => {});
+    }
     return this.ensureScript().then(() => new Promise((resolve, reject) => {
+      const fail = (err) => reject(new Error(this.explainError(err)));
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: this.SCOPE,
         callback: (resp) => {
           if (resp?.error) {
-            reject(new Error(resp.error_description || resp.error));
+            fail(resp);
+            return;
+          }
+          if (!resp?.access_token) {
+            fail({ message: "popup_failed_to_open" });
             return;
           }
           const data = this.load();
@@ -76,6 +163,14 @@ const AgendaGoogle = {
           data.granted = true;
           this.save(data);
           resolve(resp.access_token);
+        },
+        error_callback: (err) => {
+          const type = String(err?.type || err?.message || "");
+          if (type === "popup_failed_to_open") {
+            this.startRedirect(prompt || "consent");
+            return;
+          }
+          fail(err);
         },
       });
       client.requestAccessToken({ prompt: prompt || "" });
@@ -112,6 +207,9 @@ const AgendaGoogle = {
       data.expiresAt = 0;
       this.save(data);
       throw new Error("La sesión de Google caducó. Vuelve a sincronizar.");
+    }
+    if (res.status === 403) {
+      throw new Error(this.explainError({ error: "access_denied" }));
     }
     if (!res.ok) throw new Error("Google no respondió bien. Inténtalo otra vez.");
     return res.json();

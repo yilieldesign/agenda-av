@@ -861,7 +861,7 @@ async function connectGoogle() {
   if (typeof AgendaGoogle === "undefined") return;
   if (!AgendaGoogle.clientId()) {
     document.getElementById("googleClientId")?.focus();
-    window.alert("Primero pega el ID de cliente en Configurar conexión.");
+    window.alert("Primero pega el ID de cliente arriba del calendario.");
     return;
   }
   try {
@@ -874,7 +874,7 @@ async function connectGoogle() {
         : "Conectado. No había eventos nuevos."
     );
   } catch (err) {
-    window.alert(err.message || "No se pudo conectar con Google.");
+    window.alert(AgendaGoogle.explainError(err));
     renderGoogleCard();
   }
 }
@@ -908,7 +908,7 @@ async function syncGoogle(interactive) {
       showReminderToast("No se encontraron eventos en Google Calendar.");
     }
   } catch (err) {
-    if (interactive) window.alert(err.message || "No se pudo sincronizar con Google.");
+    if (interactive) window.alert(AgendaGoogle.explainError(err));
     renderGoogleCard();
   }
 }
@@ -1561,7 +1561,7 @@ function startReminderWatch() {
 
 function registerReminderWorker() {
   if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./sw.js?v=google-id2").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=google-ios").catch(() => {});
 }
 
 function openEventForm(eventId) {
@@ -2037,5 +2037,26 @@ showSetupIfNeeded();
 registerReminderWorker();
 render();
 startReminderWatch();
-renderGoogleCard();
-syncGoogle(false);
+(async () => {
+  try {
+    const fromRedirect = typeof AgendaGoogle !== "undefined" ? AgendaGoogle.consumeRedirect() : null;
+    renderGoogleCard();
+    if (fromRedirect === "token") {
+      const items = await AgendaGoogle.sync();
+      const { added } = applyImportedItems(items, false);
+      renderGoogleCard();
+      showReminderToast(
+        added
+          ? `Conectado. Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.`
+          : "Conectado. No había eventos nuevos."
+      );
+      return;
+    }
+  } catch (err) {
+    renderGoogleCard();
+    window.alert(typeof AgendaGoogle !== "undefined" ? AgendaGoogle.explainError(err) : String(err.message || err));
+    return;
+  }
+  renderGoogleCard();
+  syncGoogle(false);
+})();
