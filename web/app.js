@@ -33,6 +33,9 @@ const state = {
   selectedServiceIds: [],
   editingCompanyId: null,
   activeInvoiceId: null,
+  reminderKinds: new Set(),
+  reminderTime: "08:00",
+  customReminders: [],
   report: {
     kind: "monthly",
     month: startOfMonth(new Date()),
@@ -177,6 +180,9 @@ function load() {
   ensureCatalog();
   pruneUnusedCatalog();
   sortCatalog();
+  state.events.forEach((event) => {
+    event.reminders = AgendaReminders.normalizeReminders(event.reminders);
+  });
   persist();
 }
 
@@ -380,6 +386,7 @@ function renderDayPanel() {
           <div class="muted">${escapeHtml(company?.name || "Sin empresa")}</div>
           ${range}
           <span class="badge ${event.paymentStatus}">${event.paymentStatus === "paid" ? "Pagado" : "Pendiente"}</span>
+          ${event.reminders?.length ? `<span class="bell" title="Con recordatorio">🔔</span>` : ""}
         </div>
         <strong>${money(jobTotal(event))}</strong>
       </button>
@@ -835,6 +842,241 @@ function renderServiceChips() {
   `).join("") || `<p class="muted">Crea el primer servicio con + Nuevo.</p>`;
 }
 
+function jobDateLabel(iso) {
+  return formatDate(parseISO(iso), { day: "numeric", month: "short" });
+}
+
+function collectFormReminders(previous = []) {
+  const prevByKey = new Map(
+    previous.map((item) => [`${item.kind}:${item.kind === "custom" ? item.customAt : item.time}`, item])
+  );
+  const reminders = [];
+  for (const kind of ["sameDay", "dayBefore", "twoDaysBefore"]) {
+    if (!state.reminderKinds.has(kind)) continue;
+    const next = {
+      id: uid(),
+      kind,
+      time: state.reminderTime || AgendaReminders.DEFAULT_TIME,
+      customAt: "",
+      notifiedAt: null,
+    };
+    const prev = previous.find((item) => item.kind === kind)
+      || prevByKey.get(`${kind}:${next.time}`);
+    if (prev) {
+      next.id = prev.id;
+      const sameTime = (prev.time || AgendaReminders.DEFAULT_TIME) === next.time;
+      next.notifiedAt = sameTime ? prev.notifiedAt : null;
+    }
+    reminders.push(next);
+  }
+  if (state.reminderKinds.has("custom")) {
+    for (const custom of state.customReminders) {
+      if (!custom.at) continue;
+      const prev = previous.find((item) => item.id === custom.id)
+        || previous.find((item) => item.kind === "custom" && item.customAt === custom.at);
+      reminders.push({
+        id: custom.id || prev?.id || uid(),
+        kind: "custom",
+        time: "",
+        customAt: custom.at,
+        notifiedAt: prev && prev.customAt === custom.at ? prev.notifiedAt : null,
+      });
+    }
+  }
+  return AgendaReminders.normalizeReminders(reminders);
+}
+
+function isIOSDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function reminderHintText() {
+  if (isIOSDevice()) {
+    return "En iPhone, Safari suele notificar si instalas Agenda AV en Inicio y la tienes en uso. Si la cierras, el aviso se muestra al volver a abrir la app.";
+  }
+  return "El navegador no tiene alarmas persistentes. El aviso llega si la app está abierta o al abrirla. En el teléfono, «Añadir a pantalla de inicio» ayuda.";
+}
+
+function notificationsSupported() {
+  return typeof Notification !== "undefined";
+}
+
+function updateReminderPermissionNote() {
+  const note = document.getElementById("reminderPermissionNote");
+  if (!note) return;
+  const hasReminders = state.reminderKinds.size > 0;
+  if (!hasReminders) {
+    note.classList.add("hidden");
+    note.textContent = "";
+    return;
+  }
+  if (!notificationsSupported()) {
+    note.textContent = "Este navegador no admite notificaciones. Guardamos el recordatorio y lo mostramos al abrir la app.";
+    note.classList.remove("hidden");
+    return;
+  }
+  if (Notification.permission === "denied") {
+    note.textContent = "Sin permiso no llegan avisos del sistema. Puedes activarlo en Ajustes del navegador; el trabajo se guarda igual.";
+    note.classList.remove("hidden");
+    return;
+  }
+  if (Notification.permission === "granted") {
+    note.classList.add("hidden");
+    note.textContent = "";
+    return;
+  }
+  note.textContent = "Al guardar te pediremos permiso para avisarte. Si lo niegas, el trabajo se guarda igual.";
+  note.classList.remove("hidden");
+}
+
+async function ensureNotificationPermission() {
+  if (!notificationsSupported()) return "unsupported";
+  if (Notification.permission === "granted") return "granted";
+  if (Notification.permission === "denied") return "denied";
+  try {
+    return await Notification.requestPermission();
+  } catch (_) {
+    return Notification.permission;
+  }
+}
+
+function renderReminderEditor() {
+  const hint = document.getElementById("reminderHint");
+  if (hint) hint.textContent = reminderHintText();
+  document.querySelectorAll("[data-reminder-kind]").forEach((btn) => {
+    btn.classList.toggle("active", state.reminderKinds.has(btn.dataset.reminderKind));
+  });
+  const timeWrap = document.getElementById("reminderTimeWrap");
+  const hasRelative = ["sameDay", "dayBefore", "twoDaysBefore"].some((kind) => state.reminderKinds.has(kind));
+  timeWrap.classList.toggle("hidden", !hasRelative);
+  document.getElementById("reminderTime").value = state.reminderTime || AgendaReminders.DEFAULT_TIME;
+  const customWrap = document.getElementById("customReminders");
+  const showCustom = state.reminderKinds.has("custom");
+  customWrap.classList.toggle("hidden", !showCustom);
+  if (showCustom) {
+    customWrap.innerHTML = state.customReminders.map((item, index) => `
+      <div class="custom-reminder-row">
+        <input type="datetime-local" data-custom-reminder="${item.id}" value="${item.at || ""}" />
+        <button type="button" class="text-btn" data-remove-custom="${item.id}">Quitar</button>
+      </div>
+      ${index === state.customReminders.length - 1 ? `<button type="button" class="text-btn" id="addCustomReminder">+ Otra fecha y hora</button>` : ""}
+    `).join("") || `<button type="button" class="text-btn" id="addCustomReminder">+ Fecha y hora</button>`;
+  } else {
+    customWrap.innerHTML = "";
+  }
+  updateReminderPermissionNote();
+}
+
+function defaultCustomAt(form) {
+  const start = form?.startDate?.value || state.selected;
+  const time = state.reminderTime || AgendaReminders.DEFAULT_TIME;
+  return `${start}T${time}`;
+}
+
+function addCustomReminder() {
+  const form = document.getElementById("eventForm");
+  state.customReminders.push({ id: uid(), at: defaultCustomAt(form) });
+  renderReminderEditor();
+}
+
+function loadRemindersIntoForm(event) {
+  const reminders = AgendaReminders.normalizeReminders(event?.reminders);
+  state.reminderKinds = new Set(reminders.map((item) => item.kind));
+  const relative = reminders.find((item) => item.kind !== "custom");
+  state.reminderTime = relative?.time || AgendaReminders.DEFAULT_TIME;
+  state.customReminders = reminders
+    .filter((item) => item.kind === "custom")
+    .map((item) => ({ id: item.id, at: item.customAt }));
+  renderReminderEditor();
+}
+
+function notificationTitleFor(event) {
+  const company = companyById(event.companyId)?.name || "Trabajo";
+  return AgendaReminders.reminderTitle({
+    company,
+    services: eventTitle(event),
+    dateText: jobDateLabel(event.startDate),
+  });
+}
+
+async function showSystemNotification(title, body, tag) {
+  if (!notificationsSupported() || Notification.permission !== "granted") return false;
+  try {
+    const ready = navigator.serviceWorker?.ready;
+    const reg = ready ? await Promise.race([
+      ready,
+      new Promise((resolve) => setTimeout(() => resolve(null), 800)),
+    ]) : null;
+    if (reg?.showNotification) {
+      await reg.showNotification(title, { body, tag, lang: "es", renotify: true });
+      return true;
+    }
+  } catch (_) { /* fallback below */ }
+  try {
+    new Notification(title, { body, tag });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function showReminderToast(text) {
+  const toast = document.getElementById("reminderToast");
+  if (!toast) return;
+  toast.textContent = text;
+  toast.classList.remove("hidden");
+  clearTimeout(showReminderToast._t);
+  showReminderToast._t = setTimeout(() => toast.classList.add("hidden"), 6000);
+}
+
+async function checkReminders(now = new Date()) {
+  let changed = false;
+  const dueMessages = [];
+  for (const event of state.events) {
+    const reminders = AgendaReminders.normalizeReminders(event.reminders);
+    if (!reminders.length) continue;
+    let eventChanged = false;
+    for (const reminder of reminders) {
+      const fireAt = AgendaReminders.reminderFireDate(event.startDate, reminder);
+      const status = AgendaReminders.fireStatus(fireAt, now, reminder.notifiedAt);
+      if (status === "stale") {
+        reminder.notifiedAt = now.toISOString();
+        eventChanged = true;
+        continue;
+      }
+      if (status !== "due") continue;
+      const title = notificationTitleFor(event);
+      const body = AgendaReminders.reminderBody(reminder.kind);
+      const shown = await showSystemNotification(title, body, `agenda-${event.id}-${reminder.id}`);
+      reminder.notifiedAt = now.toISOString();
+      eventChanged = true;
+      if (!shown) dueMessages.push(title);
+    }
+    if (eventChanged) {
+      event.reminders = reminders;
+      changed = true;
+    }
+  }
+  if (changed) persist();
+  if (dueMessages.length) showReminderToast(`Recordatorio: ${dueMessages[0]}`);
+}
+
+function startReminderWatch() {
+  checkReminders();
+  setInterval(() => {
+    if (document.visibilityState === "visible") checkReminders();
+  }, 30000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") checkReminders();
+  });
+}
+
+function registerReminderWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.register("./sw.js").catch(() => {});
+}
+
 function openEventForm(eventId) {
   const form = document.getElementById("eventForm");
   const event = state.events.find((e) => e.id === eventId);
@@ -854,6 +1096,7 @@ function openEventForm(eventId) {
   document.querySelectorAll(".pay-btn").forEach((b) => b.classList.toggle("active", b.dataset.status === state.paymentStatus));
   renderCompanySelect();
   renderServiceChips();
+  loadRemindersIntoForm(event);
   updateAmountHint();
   document.getElementById("overlay").classList.remove("hidden");
 }
@@ -929,6 +1172,31 @@ document.addEventListener("click", (event) => {
       state.selectedServiceIds.push(id);
     }
     renderServiceChips();
+    return;
+  }
+  const reminderKind = event.target.closest("[data-reminder-kind]");
+  if (reminderKind) {
+    const kind = reminderKind.dataset.reminderKind;
+    if (state.reminderKinds.has(kind)) {
+      state.reminderKinds.delete(kind);
+      if (kind === "custom") state.customReminders = [];
+    } else {
+      state.reminderKinds.add(kind);
+      if (kind === "custom" && !state.customReminders.length) addCustomReminder();
+      ensureNotificationPermission().then(updateReminderPermissionNote);
+    }
+    renderReminderEditor();
+    return;
+  }
+  if (event.target.id === "addCustomReminder") {
+    addCustomReminder();
+    return;
+  }
+  const removeCustom = event.target.closest("[data-remove-custom]");
+  if (removeCustom) {
+    state.customReminders = state.customReminders.filter((item) => item.id !== removeCustom.dataset.removeCustom);
+    if (!state.customReminders.length) state.reminderKinds.delete("custom");
+    renderReminderEditor();
     return;
   }
   const company = event.target.closest("[data-company]");
@@ -1037,6 +1305,14 @@ document.getElementById("eventForm").addEventListener("input", (event) => {
   if (["startDate", "endDate", "amount"].includes(event.target.name)) {
     updateAmountHint();
   }
+  if (event.target.id === "reminderTime") {
+    state.reminderTime = event.target.value || AgendaReminders.DEFAULT_TIME;
+  }
+  const custom = event.target.closest("[data-custom-reminder]");
+  if (custom) {
+    const found = state.customReminders.find((item) => item.id === custom.dataset.customReminder);
+    if (found) found.at = custom.value;
+  }
 });
 document.getElementById("eventForm").addEventListener("change", (event) => {
   if (["startDate", "endDate"].includes(event.target.name)) {
@@ -1044,7 +1320,7 @@ document.getElementById("eventForm").addEventListener("change", (event) => {
   }
 });
 
-document.getElementById("eventForm").onsubmit = (event) => {
+document.getElementById("eventForm").onsubmit = async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const error = document.getElementById("formError");
@@ -1066,6 +1342,14 @@ document.getElementById("eventForm").onsubmit = (event) => {
   }
   const startDate = form.startDate.value;
   const endDate = form.endDate.value < startDate ? startDate : form.endDate.value;
+  const previous = state.events.find((e) => e.id === state.editingId);
+  const reminders = collectFormReminders(previous?.reminders || []);
+  let deniedNotice = false;
+  if (reminders.length) {
+    const permission = await ensureNotificationPermission();
+    updateReminderPermissionNote();
+    deniedNotice = permission === "denied";
+  }
   const payload = {
     id: state.editingId || uid(),
     startDate,
@@ -1076,6 +1360,7 @@ document.getElementById("eventForm").onsubmit = (event) => {
     paymentStatus: state.paymentStatus,
     notes: form.notes.value.trim(),
     companyId: state.selectedCompanyId,
+    reminders,
   };
   if (state.editingId) {
     state.events = state.events.map((e) => (e.id === state.editingId ? payload : e));
@@ -1085,6 +1370,10 @@ document.getElementById("eventForm").onsubmit = (event) => {
   persist();
   closeEventForm();
   render();
+  if (deniedNotice) {
+    showReminderToast("Guardado. Sin permiso no llegan avisos del sistema; al abrir la app sí verás el recordatorio.");
+  }
+  checkReminders();
 };
 
 document.getElementById("deleteEvent").onclick = () => {
@@ -1140,4 +1429,6 @@ load();
 document.querySelector(".phone").dataset.tab = "agenda";
 applyUserName();
 showSetupIfNeeded();
+registerReminderWorker();
 render();
+startReminderWatch();

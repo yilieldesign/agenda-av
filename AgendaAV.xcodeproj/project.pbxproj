@@ -14,6 +14,7 @@
 		BB0000000000000000000005 /* Company.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000005 /* Company.swift */; };
 		BB0000000000000000000024 /* CatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000024 /* CatalogService.swift */; };
 		BB0000000000000000000006 /* WorkEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000006 /* WorkEvent.swift */; };
+		BB0000000000000000000027 /* EventReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000027 /* EventReminder.swift */; };
 		BB0000000000000000000007 /* ReportPeriod.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000007 /* ReportPeriod.swift */; };
 		BB0000000000000000000008 /* CalendarDate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000008 /* CalendarDate.swift */; };
 		BB0000000000000000000026 /* DefaultCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000026 /* DefaultCatalog.swift */; };
@@ -24,6 +25,7 @@
 		BB0000000000000000000013 /* PDFReportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000013 /* PDFReportRenderer.swift */; };
 		BB0000000000000000000023 /* InvoicePDFRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000023 /* InvoicePDFRenderer.swift */; };
 		BB0000000000000000000022 /* PersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000022 /* PersistenceController.swift */; };
+		BB0000000000000000000028 /* EventReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000028 /* EventReminderScheduler.swift */; };
 		BB0000000000000000000014 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000014 /* CalendarView.swift */; };
 		BB0000000000000000000015 /* MonthGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000015 /* MonthGridView.swift */; };
 		BB0000000000000000000016 /* DayAgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000016 /* DayAgendaView.swift */; };
@@ -45,6 +47,7 @@
 		FF0000000000000000000005 /* Company.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Company.swift; sourceTree = "<group>"; };
 		FF0000000000000000000024 /* CatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogService.swift; sourceTree = "<group>"; };
 		FF0000000000000000000006 /* WorkEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkEvent.swift; sourceTree = "<group>"; };
+		FF0000000000000000000027 /* EventReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventReminder.swift; sourceTree = "<group>"; };
 		FF0000000000000000000007 /* ReportPeriod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportPeriod.swift; sourceTree = "<group>"; };
 		FF0000000000000000000008 /* CalendarDate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDate.swift; sourceTree = "<group>"; };
 		FF0000000000000000000026 /* DefaultCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultCatalog.swift; sourceTree = "<group>"; };
@@ -55,6 +58,7 @@
 		FF0000000000000000000013 /* PDFReportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFReportRenderer.swift; sourceTree = "<group>"; };
 		FF0000000000000000000023 /* InvoicePDFRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoicePDFRenderer.swift; sourceTree = "<group>"; };
 		FF0000000000000000000022 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
+		FF0000000000000000000028 /* EventReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventReminderScheduler.swift; sourceTree = "<group>"; };
 		FF0000000000000000000014 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
 		FF0000000000000000000015 /* MonthGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthGridView.swift; sourceTree = "<group>"; };
 		FF0000000000000000000016 /* DayAgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayAgendaView.swift; sourceTree = "<group>"; };
@@ -121,6 +125,7 @@
 				FF0000000000000000000005 /* Company.swift */,
 				FF0000000000000000000024 /* CatalogService.swift */,
 				FF0000000000000000000006 /* WorkEvent.swift */,
+				FF0000000000000000000027 /* EventReminder.swift */,
 				FF0000000000000000000007 /* ReportPeriod.swift */,
 			);
 			path = Models;
@@ -145,6 +150,7 @@
 				FF0000000000000000000013 /* PDFReportRenderer.swift */,
 				FF0000000000000000000023 /* InvoicePDFRenderer.swift */,
 				FF0000000000000000000022 /* PersistenceController.swift */,
+				FF0000000000000000000028 /* EventReminderScheduler.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -291,6 +297,7 @@
 				BB0000000000000000000005 /* Company.swift in Sources */,
 				BB0000000000000000000024 /* CatalogService.swift in Sources */,
 				BB0000000000000000000006 /* WorkEvent.swift in Sources */,
+				BB0000000000000000000027 /* EventReminder.swift in Sources */,
 				BB0000000000000000000007 /* ReportPeriod.swift in Sources */,
 				BB0000000000000000000008 /* CalendarDate.swift in Sources */,
 				BB0000000000000000000026 /* DefaultCatalog.swift in Sources */,
@@ -301,6 +308,7 @@
 				BB0000000000000000000013 /* PDFReportRenderer.swift in Sources */,
 				BB0000000000000000000023 /* InvoicePDFRenderer.swift in Sources */,
 				BB0000000000000000000022 /* PersistenceController.swift in Sources */,
+				BB0000000000000000000028 /* EventReminderScheduler.swift in Sources */,
 				BB0000000000000000000014 /* CalendarView.swift in Sources */,
 				BB0000000000000000000015 /* MonthGridView.swift in Sources */,
 				BB0000000000000000000016 /* DayAgendaView.swift in Sources */,

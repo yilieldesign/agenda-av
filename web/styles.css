@@ -355,6 +355,40 @@ input, textarea, select {
   border-color: var(--accent);
 }
 .service-picker { margin: 10px 0 4px; }
+.chip-row { display: flex; flex-wrap: wrap; margin-top: 8px; }
+.reminder-block {
+  margin: 12px 0 4px;
+  padding: 12px;
+  border: 1px solid #e5ece9;
+  border-radius: 14px;
+  background: #f7faf9;
+}
+.reminder-block strong { display: block; }
+.custom-reminders { margin-top: 8px; }
+.custom-reminder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.custom-reminder-row input { margin-top: 0; }
+.custom-reminder-row .text-btn { margin: 0; flex: 0 0 auto; }
+.reminder-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(398px, calc(100% - 32px));
+  background: #122027;
+  color: white;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  z-index: 30;
+  font-size: 13px;
+  font-weight: 600;
+}
+.event .bell { font-size: 12px; margin-left: 4px; }
 select {
   appearance: none;
   background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath fill='%235b6b73' d='M0 0l6 8 6-8z'/%3E%3C/svg%3E") no-repeat right 12px center;
@@ -460,7 +494,7 @@ select {
     overflow: visible;
   }
   body { background: white; }
-  .phone, .overlay, .tabbar { display: none !important; }
+  .phone, .overlay, .tabbar, .reminder-toast { display: none !important; }
   .print-root, .print-root[hidden] {
     display: block !important;
     padding: 24px;

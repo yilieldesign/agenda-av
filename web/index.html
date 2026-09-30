@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=overlays-content" />
   <meta name="theme-color" content="#0F766E" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Agenda AV" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="stylesheet" href="styles.css?v=cobro-completo" />
+  <link rel="manifest" href="manifest.webmanifest?v=recordatorios" />
+  <link rel="stylesheet" href="styles.css?v=recordatorios" />
 </head>
 <body>
   <div class="phone">
@@ -110,6 +112,23 @@
         <button type="button" class="pay-btn active" data-status="pending">Pendiente</button>
         <button type="button" class="pay-btn" data-status="paid">Pagado</button>
       </div>
+      <div class="reminder-block">
+        <div class="row-between">
+          <strong>Recordatorios</strong>
+        </div>
+        <p class="muted" id="reminderHint"></p>
+        <p class="muted hidden" id="reminderPermissionNote"></p>
+        <div class="chip-row" id="reminderChips">
+          <button type="button" class="chip" data-reminder-kind="sameDay">El mismo día</button>
+          <button type="button" class="chip" data-reminder-kind="dayBefore">1 día antes</button>
+          <button type="button" class="chip" data-reminder-kind="twoDaysBefore">2 días antes</button>
+          <button type="button" class="chip" data-reminder-kind="custom">Fecha y hora</button>
+        </div>
+        <label id="reminderTimeWrap" class="hidden">Hora del aviso
+          <input type="time" id="reminderTime" value="08:00" />
+        </label>
+        <div id="customReminders" class="custom-reminders hidden"></div>
+      </div>
       <label>Notas
         <textarea name="notes" rows="3" placeholder="Rol, lugar, equipamiento…"></textarea>
       </label>
@@ -176,8 +195,10 @@
     </form>
   </div>
 
+  <div id="reminderToast" class="reminder-toast hidden" role="status"></div>
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="pdf.js?v=cobro-completo"></script>
-  <script src="app.js?v=cobro-completo"></script>
+  <script src="pdf.js?v=recordatorios"></script>
+  <script src="reminders.js?v=recordatorios"></script>
+  <script src="app.js?v=recordatorios"></script>
 </body>
 </html>

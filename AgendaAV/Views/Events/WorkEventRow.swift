@@ -34,6 +34,13 @@ struct WorkEventRow: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    if !event.reminders.isEmpty {
+                        Text("·")
+                            .foregroundStyle(.tertiary)
+                        Image(systemName: "bell.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 PaymentBadge(status: event.paymentStatus)

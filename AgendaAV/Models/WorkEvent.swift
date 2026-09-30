@@ -17,6 +17,8 @@ final class WorkEvent {
     var notes: String
     var createdAt: Date
     var company: Company?
+    /// JSON de recordatorios (`EventReminder`). Vacío = sin avisos.
+    var remindersRaw: String = "[]"
 
     var paymentStatus: PaymentStatus {
         get { PaymentStatus(rawValue: paymentStatusRaw) ?? .pending }
@@ -74,6 +76,24 @@ final class WorkEvent {
         }
     }
 
+    var reminders: [EventReminder] {
+        get {
+            guard let data = remindersRaw.data(using: .utf8),
+                  let decoded = try? EventReminder.decoder.decode([EventReminder].self, from: data) else {
+                return []
+            }
+            return decoded
+        }
+        set {
+            if let data = try? EventReminder.encoder.encode(newValue),
+               let raw = String(data: data, encoding: .utf8) {
+                remindersRaw = raw
+            } else {
+                remindersRaw = "[]"
+            }
+        }
+    }
+
     init(
         uuid: UUID = UUID(),
         startDate: Date,
@@ -84,7 +104,8 @@ final class WorkEvent {
         notes: String = "",
         company: Company? = nil,
         createdAt: Date = .now,
-        serviceNames: [String] = []
+        serviceNames: [String] = [],
+        reminders: [EventReminder] = []
     ) {
         self.uuid = uuid
         self.startDate = startDate
@@ -103,6 +124,12 @@ final class WorkEvent {
             self.servicesRaw = raw
         } else {
             self.servicesRaw = "[]"
+        }
+        if let data = try? EventReminder.encoder.encode(reminders),
+           let raw = String(data: data, encoding: .utf8) {
+            self.remindersRaw = raw
+        } else {
+            self.remindersRaw = "[]"
         }
     }
 
