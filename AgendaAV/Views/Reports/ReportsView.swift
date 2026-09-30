@@ -2,14 +2,18 @@ import SwiftData
 import SwiftUI
 import UIKit
 import PDFKit
+import UserNotifications
 
 struct ReportsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \WorkEvent.startDate) private var events: [WorkEvent]
+    @Query private var companies: [Company]
+    @Query private var catalogServices: [CatalogService]
     @State private var period = ReportPeriod()
     @State private var pdfDocument: ReportPDFFile?
     @State private var previewDocument: ReportPDFFile?
     @State private var companyToPay: CompanyBreakdown?
+    @State private var showingResetConfirm = false
     @AppStorage("invoiceIssuerName") private var invoiceName = ""
     @AppStorage("invoiceIssuerPhone") private var invoicePhone = ""
     @AppStorage("invoicePaymentNote") private var invoicePayment = ""
@@ -33,6 +37,7 @@ struct ReportsView: View {
                     paymentBreakdown
                     jobsList
                     exportCard
+                    resetCard
                 }
                 .padding()
             }
@@ -70,6 +75,12 @@ struct ReportsView: View {
                 }
             } message: {
                 Text("Los trabajos pendientes de \(companyToPay?.name ?? "esta empresa") salen de Pendiente y quedan en el historial.")
+            }
+            .alert("¿Reiniciar a primer uso?", isPresented: $showingResetConfirm) {
+                Button("Cancelar", role: .cancel) {}
+                Button("Borrar todo", role: .destructive, action: resetAppToFirstUse)
+            } message: {
+                Text("Se borran trabajos, montos, empresas nuevas y tus datos. No se puede deshacer.")
             }
         }
     }
@@ -488,6 +499,24 @@ struct ReportsView: View {
         .background(.background, in: RoundedRectangle(cornerRadius: AVStyle.cardCorner, style: .continuous))
     }
 
+    private var resetCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Datos de este teléfono")
+                .font(.headline)
+            Text("Vuelve a dejar la app como el primer uso. Se borra todo lo guardado aquí.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Button("Reiniciar a primer uso", role: .destructive) {
+                showingResetConfirm = true
+            }
+            .frame(maxWidth: .infinity)
+            .buttonStyle(.bordered)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: AVStyle.cardCorner, style: .continuous))
+    }
+
     // MARK: - Actions
 
     private func shiftMonth(_ value: Int) {
@@ -543,6 +572,21 @@ struct ReportsView: View {
             event.paymentStatus = .paid
         }
         try? modelContext.save()
+    }
+
+    private func resetAppToFirstUse() {
+        for event in events { modelContext.delete(event) }
+        for company in companies { modelContext.delete(company) }
+        for service in catalogServices { modelContext.delete(service) }
+        try? modelContext.save()
+        DefaultCatalog.ensure(in: modelContext)
+        invoiceName = ""
+        invoicePhone = ""
+        invoicePayment = ""
+        UserDefaults.standard.removeObject(forKey: "agendaAV.savedAmounts")
+        UserDefaults.standard.removeObject(forKey: "agendaAV.lastDailyAmount")
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
     }
 
     private func invoiceDate(_ event: WorkEvent) -> String {

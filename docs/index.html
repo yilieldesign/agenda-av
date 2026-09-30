@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="manifest" href="manifest.webmanifest?v=monto-lista" />
-  <link rel="stylesheet" href="styles.css?v=monto-lista" />
+  <link rel="manifest" href="manifest.webmanifest?v=dias-reset" />
+  <link rel="stylesheet" href="styles.css?v=dias-reset" />
 </head>
 <body>
   <div class="phone">
@@ -67,6 +67,11 @@
           <button type="button" class="secondary" id="printPdf">Imprimir</button>
           <button type="button" class="primary" id="sharePdf">Reporte PDF</button>
         </div>
+      </section>
+      <section class="card">
+        <h3>Datos de este teléfono</h3>
+        <p class="muted">Vuelve a dejar la app como el primer uso. Se borran trabajos, montos, nombre y todo lo guardado aquí.</p>
+        <button type="button" class="danger" id="resetApp">Reiniciar a primer uso</button>
       </section>
     </main>
 
@@ -215,8 +220,8 @@
 
   <div id="reminderToast" class="reminder-toast hidden" role="status"></div>
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="pdf.js?v=monto-lista"></script>
-  <script src="reminders.js?v=monto-lista"></script>
-  <script src="app.js?v=monto-lista"></script>
+  <script src="pdf.js?v=dias-reset"></script>
+  <script src="reminders.js?v=dias-reset"></script>
+  <script src="app.js?v=dias-reset"></script>
 </body>
 </html>

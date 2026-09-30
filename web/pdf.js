@@ -71,7 +71,8 @@ const InvoicePDF = {
     lines.push(`${margin} ${y - 6} ${pageW - margin * 2} 22 re f`);
     lines.push("1 1 1 rg");
     text(margin + 8, y, 10, true, "Fecha");
-    text(margin + 130, y, 10, true, "Trabajo");
+    text(margin + 118, y, 10, true, "Dias");
+    text(margin + 168, y, 10, true, "Trabajo");
     text(pageW - margin - 52, y, 10, true, "Monto");
     lines.push("0 0 0 rg");
     y -= 26;
@@ -84,7 +85,8 @@ const InvoicePDF = {
         lines.push("0 0 0 rg");
       }
       text(margin + 8, y, 10, false, job.date);
-      text(margin + 130, y, 10, false, clip(job.project, 42));
+      text(margin + 118, y, 10, false, String(job.daysLabel || job.days || ""));
+      text(margin + 168, y, 10, false, clip(job.project, 36));
       text(pageW - margin - 70, y, 10, true, job.amount);
       y -= 18;
     });
@@ -95,6 +97,11 @@ const InvoicePDF = {
     y -= 20;
     text(margin, y, 12, true, "TOTAL");
     text(pageW - margin - 90, y, 12, true, invoice.total);
+    y -= 16;
+    if (invoice.totalDaysLabel) {
+      text(margin, y, 10, false, `Total dias: ${invoice.totalDaysLabel}`);
+      y -= 16;
+    }
     y -= 28;
     if (invoice.paymentNote) {
       ensure(40);

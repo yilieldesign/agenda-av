@@ -154,8 +154,9 @@ enum InvoicePDFRenderer {
                 .font: UIFont.systemFont(ofSize: 10, weight: .regular),
                 .foregroundColor: UIColor.black
             ]
-            dateLabel(for: event).draw(in: CGRect(x: margin + 6, y: y, width: 110, height: 16), withAttributes: attrs)
-            event.reportLabel.draw(in: CGRect(x: margin + 120, y: y, width: 280, height: 16), withAttributes: attrs)
+            dateLabel(for: event).draw(in: CGRect(x: margin + 6, y: y, width: 100, height: 16), withAttributes: attrs)
+            daysLabel(event.occupiedDayCount).draw(in: CGRect(x: margin + 108, y: y, width: 50, height: 16), withAttributes: attrs)
+            event.reportLabel.draw(in: CGRect(x: margin + 160, y: y, width: 240, height: 16), withAttributes: attrs)
             let amount = CurrencyFormat.string(from: event.billedAmount(in: range))
             let amountWidth = (amount as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 10, weight: .semibold)]).width
             amount.draw(
@@ -174,6 +175,9 @@ enum InvoicePDFRenderer {
         y += 12
 
         drawAmountRow(title: "TOTAL", value: CurrencyFormat.string(from: total), y: y, bold: true)
+        y += 20
+        let billedDays = events.reduce(0) { $0 + $1.occupiedDayCount }
+        drawAmountRow(title: "Total días", value: daysLabel(billedDays), y: y, bold: false)
         y += 28
 
         if !issuer.paymentNote.isEmpty {
@@ -221,7 +225,8 @@ enum InvoicePDFRenderer {
             .foregroundColor: UIColor.white
         ]
         "Fecha".draw(at: CGPoint(x: margin + 6, y: y + 4), withAttributes: attrs)
-        "Trabajo".draw(at: CGPoint(x: margin + 120, y: y + 4), withAttributes: attrs)
+        "Días".draw(at: CGPoint(x: margin + 108, y: y + 4), withAttributes: attrs)
+        "Trabajo".draw(at: CGPoint(x: margin + 160, y: y + 4), withAttributes: attrs)
         "Monto".draw(at: CGPoint(x: margin + 430, y: y + 4), withAttributes: attrs)
         return y + 28
     }
@@ -243,6 +248,10 @@ enum InvoicePDFRenderer {
                 .foregroundColor: UIColor.black
             ]
         )
+    }
+
+    private static func daysLabel(_ count: Int) -> String {
+        count == 1 ? "1 día" : "\(count) días"
     }
 
     private static func dateLabel(for event: WorkEvent) -> String {

@@ -223,6 +223,11 @@ function eventDayCount(event) {
   return dayCount(event.startDate, event.endDate);
 }
 
+function daysLabel(count) {
+  const n = Number(count) || 0;
+  return n === 1 ? "1 día" : `${n} días`;
+}
+
 function jobTotal(event) {
   return (Number(event.amount) || 0) * eventDayCount(event);
 }
@@ -650,6 +655,23 @@ function showSetupIfNeeded() {
   overlay.classList.toggle("hidden", Boolean(loadProfile().name.trim()));
 }
 
+function resetAppToFirstUse() {
+  const ok = window.confirm(
+    "¿Reiniciar la app como el primer uso?\n\nSe borran trabajos, empresas nuevas, montos, tu nombre y todo lo guardado en este teléfono."
+  );
+  if (!ok) return;
+  const sure = window.confirm("Esto no se puede deshacer. ¿Borrar todo?");
+  if (!sure) return;
+  [
+    STORAGE_KEY,
+    PROFILE_KEY,
+    "agenda-av-web-v1",
+    "agenda-av-web-v2",
+    "agenda-av-profile-v1",
+  ].forEach((key) => localStorage.removeItem(key));
+  window.location.reload();
+}
+
 function renderInvoiceProfile() {
   const profile = loadProfile();
   document.getElementById("invoiceProfileCard").innerHTML = `
@@ -689,7 +711,7 @@ function companyRowsByStatus(summary, status) {
 function jobLinesHTML(events) {
   return events.map((event) => `
     <div class="job-line">
-      <span class="date">${escapeHtml(formatJobDate(event))}</span>
+      <span class="date">${escapeHtml(formatJobDate(event))} · ${daysLabel(eventDayCount(event))}</span>
       <span>${escapeHtml(eventReportLabel(event))}</span>
       <strong>${money(jobTotal(event))}</strong>
     </div>
@@ -751,6 +773,7 @@ function companyInvoice(companyId) {
   const jobs = company.events.filter((event) => event.paymentStatus === "pending");
   if (!jobs.length) return null;
   const profile = loadProfile();
+  const totalDays = jobs.reduce((sum, event) => sum + eventDayCount(event), 0);
   return {
     issued: formatDate(new Date(), { day: "numeric", month: "long", year: "numeric" }),
     fromName: profile.name || "Servicios audiovisuales freelance",
@@ -760,11 +783,15 @@ function companyInvoice(companyId) {
     period: formatRange(summary.start, summary.end),
     jobs: jobs.map((event) => ({
       date: formatJobDate(event),
+      days: eventDayCount(event),
+      daysLabel: daysLabel(eventDayCount(event)),
       project: eventReportLabel(event),
       status: "",
       amount: money(jobTotal(event)),
       amountRaw: jobTotal(event),
     })),
+    totalDays,
+    totalDaysLabel: daysLabel(totalDays),
     total: money(eventsAmount(jobs)),
     fileName: `Reporte-${(company.name || "cliente").replace(/[^\wáéíóúñÁÉÍÓÚÑ]+/gi, "-")}.pdf`,
   };
@@ -774,6 +801,7 @@ function invoiceHTML(inv) {
   const rows = inv.jobs.map((job) => `
     <tr>
       <td>${escapeHtml(job.date)}</td>
+      <td>${escapeHtml(job.daysLabel || daysLabel(job.days))}</td>
       <td>${escapeHtml(job.project)}</td>
       <td>${escapeHtml(job.amount)}</td>
     </tr>
@@ -785,10 +813,10 @@ function invoiceHTML(inv) {
     <p><strong>Para:</strong> ${escapeHtml(inv.companyName)}</p>
     <p><strong>Período:</strong> ${escapeHtml(inv.period)}</p>
     <table>
-      <thead><tr><th>Fecha</th><th>Trabajo</th><th>Monto</th></tr></thead>
+      <thead><tr><th>Fecha</th><th>Días</th><th>Trabajo</th><th>Monto</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot>
-        <tr><th colspan="2">Total</th><th>${escapeHtml(inv.total)}</th></tr>
+        <tr><th colspan="2">Total · ${escapeHtml(inv.totalDaysLabel || daysLabel(inv.totalDays))}</th><th colspan="2">${escapeHtml(inv.total)}</th></tr>
       </tfoot>
     </table>
     ${inv.paymentNote ? `<p><strong>Pago:</strong> ${escapeHtml(inv.paymentNote)}</p>` : ""}
@@ -963,10 +991,11 @@ function renderReports() {
 }
 
 function reportHTML(summary) {
+  const totalDays = summary.events.reduce((sum, event) => sum + eventDayCount(event), 0);
   const rows = summary.events.map((event) => {
     const company = companyById(event.companyId);
     const fecha = event.startDate === event.endDate ? event.startDate : `${event.startDate} – ${event.endDate}`;
-    return `<tr><td>${fecha}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventReportLabel(event))}</td><td>${money(jobTotal(event))}</td></tr>`;
+    return `<tr><td>${fecha}</td><td>${daysLabel(eventDayCount(event))}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventReportLabel(event))}</td><td>${money(jobTotal(event))}</td></tr>`;
   }).join("");
   const year = state.report.month.getFullYear();
   const months = state.report.kind === "yearly"
@@ -983,15 +1012,17 @@ function reportHTML(summary) {
     <h1>Reporte</h1>
     <p>Período: ${formatRange(summary.start, summary.end)}</p>
     <p>Generado ${new Date().toLocaleString(localeTag())}</p>
-    <p><strong>Trabajos:</strong> ${summary.jobCount} &nbsp; <strong>${state.report.kind === "yearly" ? "Total del año" : "Total a cobrar"}:</strong> ${money(summary.total)}</p>
+    <p><strong>Trabajos:</strong> ${summary.jobCount} &nbsp; <strong>Días:</strong> ${totalDays} &nbsp; <strong>${state.report.kind === "yearly" ? "Total del año" : "Total a cobrar"}:</strong> ${money(summary.total)}</p>
     ${monthsBlock}
     <h3>Desglose por empresa</h3>
-    ${summary.companies.map((c) => `<p>${escapeHtml(c.name)} · ${c.days.size} días · ${money(c.amount)}</p>`).join("")}
+    ${summary.companies.map((c) => `<p>${escapeHtml(c.name)} · ${daysLabel(c.days.size)} · ${money(c.amount)}</p>`).join("")}
     <table>
-      <thead><tr><th>Fecha</th><th>Empresa</th><th>Proyecto</th><th>Monto</th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="4">Sin trabajos</td></tr>`}</tbody>
+      <thead><tr><th>Fecha</th><th>Días</th><th>Empresa</th><th>Proyecto</th><th>Monto</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="5">Sin trabajos</td></tr>`}</tbody>
+      <tfoot>
+        <tr><th colspan="2">Total · ${daysLabel(totalDays)}</th><th colspan="3">${money(summary.total)}</th></tr>
+      </tfoot>
     </table>
-    <p style="text-align:right;font-weight:700">TOTAL GENERAL ${money(summary.total)}</p>
     <p class="credit-line">${APP_CREDIT}</p>
   `;
 }
@@ -1485,6 +1516,7 @@ document.getElementById("previewPdf").onclick = openReportPreview;
 document.getElementById("printInvoice").onclick = printCurrentInvoice;
 document.getElementById("sendInvoice").onclick = () => sendCurrentInvoice().catch(() => printCurrentInvoice());
 document.getElementById("closeInvoice").onclick = closeInvoice;
+document.getElementById("resetApp").onclick = resetAppToFirstUse;
 document.getElementById("invoiceProfileCard").addEventListener("input", () => {
   saveProfile({
     name: document.getElementById("profileName")?.value.trim() || "",

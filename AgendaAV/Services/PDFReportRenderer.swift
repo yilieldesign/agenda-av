@@ -295,6 +295,7 @@ enum PDFReportRenderer {
             }
 
             dateLabel(for: event).draw(in: CGRect(x: columns.date.minX, y: y, width: columns.date.width, height: 16), withAttributes: tableAttributes)
+            daysLabel(event.occupiedDayCount).draw(in: CGRect(x: columns.days.minX, y: y, width: columns.days.width, height: 16), withAttributes: tableAttributes)
             (event.company?.name ?? "—").draw(in: CGRect(x: columns.company.minX, y: y, width: columns.company.width, height: 16), withAttributes: tableAttributes)
             event.reportLabel.draw(in: CGRect(x: columns.project.minX, y: y, width: columns.project.width, height: 16), withAttributes: tableAttributes)
             let amount = CurrencyFormat.string(from: event.billedAmount(in: summary.period.closedRange))
@@ -324,6 +325,12 @@ enum PDFReportRenderer {
                 .foregroundColor: UIColor.black
             ]
         )
+        y += 18
+        let billedDays = summary.events.reduce(0) { $0 + $1.occupiedDayCount }
+        "Total días: \(daysLabel(billedDays))".draw(
+            at: CGPoint(x: margin, y: y),
+            withAttributes: bodyAttributes
+        )
 
         return y + 24
     }
@@ -338,25 +345,32 @@ enum PDFReportRenderer {
             .foregroundColor: UIColor.white
         ]
         "Fecha".draw(at: CGPoint(x: columns.date.minX, y: y + 4), withAttributes: attrs)
+        "Días".draw(at: CGPoint(x: columns.days.minX, y: y + 4), withAttributes: attrs)
         "Empresa".draw(at: CGPoint(x: columns.company.minX, y: y + 4), withAttributes: attrs)
         "Proyecto".draw(at: CGPoint(x: columns.project.minX, y: y + 4), withAttributes: attrs)
         "Monto".draw(at: CGPoint(x: columns.amount.minX, y: y + 4), withAttributes: attrs)
         return y + 28
     }
 
-    private static func columnFrames() -> (date: CGRect, company: CGRect, project: CGRect, amount: CGRect) {
+    private static func columnFrames() -> (date: CGRect, days: CGRect, company: CGRect, project: CGRect, amount: CGRect) {
         let usable = pageRect.width - margin * 2
-        let dateW: CGFloat = 118
-        let companyW: CGFloat = 130
-        let amountW: CGFloat = 90
-        let projectW = usable - dateW - companyW - amountW
+        let dateW: CGFloat = 100
+        let daysW: CGFloat = 52
+        let companyW: CGFloat = 110
+        let amountW: CGFloat = 86
+        let projectW = usable - dateW - daysW - companyW - amountW
         let y: CGFloat = 0
         return (
             CGRect(x: margin + 6, y: y, width: dateW - 8, height: 16),
-            CGRect(x: margin + dateW, y: y, width: companyW - 8, height: 16),
-            CGRect(x: margin + dateW + companyW, y: y, width: projectW - 8, height: 16),
-            CGRect(x: margin + dateW + companyW + projectW, y: y, width: amountW - 8, height: 16)
+            CGRect(x: margin + dateW, y: y, width: daysW - 6, height: 16),
+            CGRect(x: margin + dateW + daysW, y: y, width: companyW - 8, height: 16),
+            CGRect(x: margin + dateW + daysW + companyW, y: y, width: projectW - 8, height: 16),
+            CGRect(x: margin + dateW + daysW + companyW + projectW, y: y, width: amountW - 8, height: 16)
         )
+    }
+
+    private static func daysLabel(_ count: Int) -> String {
+        count == 1 ? "1 día" : "\(count) días"
     }
 
     private static func dateLabel(for event: WorkEvent) -> String {
