@@ -324,6 +324,14 @@ label {
   font-weight: 700;
   margin: 10px 0;
 }
+.datetime-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 10px;
+}
+.datetime-grid label {
+  margin-top: 10px;
+}
 input, textarea, select {
   width: 100%;
   margin-top: 6px;
@@ -502,7 +510,7 @@ select {
 }
 .job-line span:nth-child(2) { flex: 1; }
 .job-line:last-of-type { border-bottom: 0; }
-.job-line .date { color: var(--muted); min-width: 120px; }
+.job-line .date { color: var(--muted); min-width: 128px; }
 .total-line {
   display: flex;
   justify-content: space-between;

@@ -330,10 +330,15 @@ struct ReportsView: View {
 
             ForEach(jobs, id: \.uuid) { event in
                 HStack(alignment: .firstTextBaseline) {
-                    Text(invoiceDate(event))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(invoiceDate(event))
+                        if !event.scheduleLabel.isEmpty {
+                            Text(event.scheduleLabel)
+                        }
+                    }
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .frame(width: 88, alignment: .leading)
+                        .frame(width: 118, alignment: .leading)
                     Text(event.reportLabel)
                         .font(.caption)
                         .lineLimit(2)

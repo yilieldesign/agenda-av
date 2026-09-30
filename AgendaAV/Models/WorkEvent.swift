@@ -92,6 +92,21 @@ final class WorkEvent {
         return services.isEmpty ? "Trabajo" : services
     }
 
+    var hasExplicitSchedule: Bool {
+        let calendar = Calendar.current
+        let startMidnight = calendar.component(.hour, from: startDate) == 0 && calendar.component(.minute, from: startDate) == 0
+        let endMidnight = calendar.component(.hour, from: endDate) == 0 && calendar.component(.minute, from: endDate) == 0
+        return !(startMidnight && endMidnight)
+    }
+
+    var scheduleLabel: String {
+        guard hasExplicitSchedule else { return "" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "es_DO")
+        formatter.dateFormat = "HH:mm"
+        return "desde \(formatter.string(from: startDate)) - hasta \(formatter.string(from: endDate))"
+    }
+
     var reminders: [EventReminder] {
         get {
             guard let data = remindersRaw.data(using: .utf8),

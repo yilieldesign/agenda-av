@@ -228,6 +228,24 @@ function daysLabel(count) {
   return n === 1 ? "1 día" : `${n} días`;
 }
 
+function normalizeTime(value) {
+  const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return "";
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || hours > 23 || minutes > 59) return "";
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function formatJobHours(event) {
+  const start = normalizeTime(event?.startTime);
+  const end = normalizeTime(event?.endTime);
+  if (start && end) return `desde ${start} - hasta ${end}`;
+  if (start) return `desde ${start}`;
+  if (end) return `hasta ${end}`;
+  return "";
+}
+
 function jobTotal(event) {
   return (Number(event.amount) || 0) * eventDayCount(event);
 }
@@ -293,6 +311,8 @@ function load() {
   state.events.forEach((event) => {
     event.reminders = AgendaReminders.normalizeReminders(event.reminders);
     event.activityName = event.activityName || "";
+    event.startTime = normalizeTime(event.startTime);
+    event.endTime = normalizeTime(event.endTime);
     event.amount = parseAmount(event.amount);
     rememberAmount(event.amount);
   });
@@ -420,7 +440,10 @@ function sortedServices() {
 function eventsOn(iso) {
   return state.events
     .filter((e) => iso >= e.startDate && iso <= e.endDate)
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+    .sort((a, b) => {
+      const time = (normalizeTime(a.startTime) || "99:99").localeCompare(normalizeTime(b.startTime) || "99:99");
+      return time !== 0 ? time : a.startDate.localeCompare(b.startDate);
+    });
 }
 
 function occupancyForMonth() {
@@ -487,11 +510,13 @@ function renderDayPanel() {
     const range = event.startDate === event.endDate
       ? ""
       : `<div class="muted">${event.startDate} – ${event.endDate}</div>`;
+    const hours = formatJobHours(event);
     return `
       <button type="button" class="event" data-edit="${event.id}">
         <span class="bar" style="--c:${company?.color || "#6B7280"}"></span>
         <div>
           <strong>${escapeHtml(eventTitle(event))}</strong>
+          ${hours ? `<div class="muted">${escapeHtml(hours)}</div>` : ""}
           ${(event.activityName || "").trim() && eventServicesLabel(event)
             ? `<div class="muted">${escapeHtml(eventServicesLabel(event))}</div>`
             : ""}
@@ -629,7 +654,8 @@ function formatJobDate(event) {
 }
 
 function formatJobDateWithDays(event) {
-  return `${formatJobDate(event)} (${daysLabel(eventDayCount(event))})`;
+  const hours = formatJobHours(event);
+  return `${formatJobDate(event)} (${daysLabel(eventDayCount(event))})${hours ? ` · ${hours}` : ""}`;
 }
 
 function loadProfile() {
@@ -988,7 +1014,8 @@ function renderReports() {
     ${summary.events.map((event) => {
       const company = companyById(event.companyId);
       const paid = event.paymentStatus === "paid";
-      return `<div class="breakdown-row"><div><strong>${escapeHtml(eventReportLabel(event))}</strong><div class="muted">${event.startDate}${event.startDate !== event.endDate ? " – " + event.endDate : ""} · ${escapeHtml(company?.name || "")} · ${paid ? "Historial" : "Pendiente"}</div></div><strong>${money(jobTotal(event))}</strong></div>`;
+      const hours = formatJobHours(event);
+      return `<div class="breakdown-row"><div><strong>${escapeHtml(eventReportLabel(event))}</strong><div class="muted">${event.startDate}${event.startDate !== event.endDate ? " – " + event.endDate : ""}${hours ? ` · ${escapeHtml(hours)}` : ""} · ${escapeHtml(company?.name || "")} · ${paid ? "Historial" : "Pendiente"}</div></div><strong>${money(jobTotal(event))}</strong></div>`;
     }).join("") || `<p class="muted">Ajusta el rango para ver resultados.</p>`}
   `;
 }
@@ -1330,6 +1357,8 @@ function openEventForm(eventId) {
     : [];
   form.startDate.value = event?.startDate || state.selected;
   form.endDate.value = event?.endDate || state.selected;
+  form.startTime.value = event ? (normalizeTime(event.startTime) || "") : "08:00";
+  form.endTime.value = event ? (normalizeTime(event.endTime) || "") : "18:00";
   renderAmountSelect(event ? event.amount : "");
   form.activityName.value = event?.activityName || "";
   form.notes.value = event?.notes || "";
@@ -1653,6 +1682,13 @@ document.getElementById("eventForm").onsubmit = async (event) => {
   }
   const startDate = form.startDate.value;
   const endDate = form.endDate.value < startDate ? startDate : form.endDate.value;
+  const startTime = normalizeTime(form.startTime.value);
+  const endTime = normalizeTime(form.endTime.value);
+  if (startDate === endDate && startTime && endTime && endTime <= startTime) {
+    error.textContent = "La hora de fin debe ser después de la de inicio.";
+    error.classList.remove("hidden");
+    return;
+  }
   const previous = state.events.find((e) => e.id === state.editingId);
   const reminders = collectFormReminders(previous?.reminders || []);
   let deniedNotice = false;
@@ -1665,6 +1701,8 @@ document.getElementById("eventForm").onsubmit = async (event) => {
     id: state.editingId || uid(),
     startDate,
     endDate,
+    startTime,
+    endTime,
     serviceIds: [...state.selectedServiceIds],
     projectName: names.join(", "),
     activityName: form.activityName.value.trim(),

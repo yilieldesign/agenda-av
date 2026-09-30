@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="manifest" href="manifest.webmanifest?v=guion-pdf" />
-  <link rel="stylesheet" href="styles.css?v=guion-pdf" />
+  <link rel="manifest" href="manifest.webmanifest?v=sin-hora-pdf" />
+  <link rel="stylesheet" href="styles.css?v=sin-hora-pdf" />
 </head>
 <body>
   <div class="phone">
@@ -90,12 +90,20 @@
     <form class="sheet" id="eventForm">
       <div class="sheet-handle"></div>
       <h2 id="formTitle">Nuevo trabajo</h2>
-      <label>Inicio
-        <input type="date" name="startDate" required />
-      </label>
-      <label>Fin
-        <input type="date" name="endDate" required />
-      </label>
+      <div class="datetime-grid">
+        <label>Inicio
+          <input type="date" name="startDate" required />
+        </label>
+        <label>Desde
+          <input type="time" name="startTime" />
+        </label>
+        <label>Fin
+          <input type="date" name="endDate" required />
+        </label>
+        <label>Hasta
+          <input type="time" name="endTime" />
+        </label>
+      </div>
       <label>Nombre de la actividad
         <input type="text" name="activityName" maxlength="80" placeholder="Ej. Concierto, boda, festival…" />
       </label>
@@ -221,8 +229,8 @@
 
   <div id="reminderToast" class="reminder-toast hidden" role="status"></div>
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="pdf.js?v=guion-pdf"></script>
-  <script src="reminders.js?v=guion-pdf"></script>
-  <script src="app.js?v=guion-pdf"></script>
+  <script src="pdf.js?v=sin-hora-pdf"></script>
+  <script src="reminders.js?v=sin-hora-pdf"></script>
+  <script src="app.js?v=sin-hora-pdf"></script>
 </body>
 </html>

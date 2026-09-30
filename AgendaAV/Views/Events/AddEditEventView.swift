@@ -38,8 +38,8 @@ struct AddEditEventView: View {
         self.route = route
         switch route {
         case .create(let day):
-            _startDate = State(initialValue: day.startOfDay)
-            _endDate = State(initialValue: day.startOfDay)
+            _startDate = State(initialValue: Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: day.startOfDay) ?? day)
+            _endDate = State(initialValue: Calendar.current.date(bySettingHour: 18, minute: 0, second: 0, of: day.startOfDay) ?? day)
             _selectedServiceIds = State(initialValue: [])
             _amount = State(initialValue: 0)
             _amountPick = State(initialValue: "")
@@ -81,9 +81,11 @@ struct AddEditEventView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Fechas") {
+                Section("Fechas y horario") {
                     DatePicker("Inicio", selection: $startDate, displayedComponents: .date)
-                    DatePicker("Fin", selection: $endDate, in: startDate..., displayedComponents: .date)
+                    DatePicker("Desde", selection: $startDate, displayedComponents: .hourAndMinute)
+                    DatePicker("Fin", selection: $endDate, displayedComponents: .date)
+                    DatePicker("Hasta", selection: $endDate, displayedComponents: .hourAndMinute)
                     if Calendar.current.inclusiveDayCount(from: startDate, to: endDate) > 1 {
                         Text("Evento de \(Calendar.current.inclusiveDayCount(from: startDate, to: endDate)) días seguidos")
                             .font(.caption)
@@ -430,6 +432,14 @@ struct AddEditEventView: View {
             validationMessage = "El monto no puede ser negativo."
             return
         }
+        if Calendar.current.startOfDay(for: endDate) < Calendar.current.startOfDay(for: startDate) {
+            validationMessage = "La fecha de fin no puede ser antes del inicio."
+            return
+        }
+        if Calendar.current.isDate(startDate, inSameDayAs: endDate), endDate <= startDate {
+            validationMessage = "La hora de fin debe ser después de la de inicio."
+            return
+        }
 
         let previous: [EventReminder]
         if case .edit(let event) = route {
@@ -445,8 +455,8 @@ struct AddEditEventView: View {
         switch route {
         case .create:
             let event = WorkEvent(
-                startDate: startDate.startOfDay,
-                endDate: endDate.startOfDay,
+                startDate: startDate,
+                endDate: endDate,
                 projectName: names.joined(separator: ", "),
                 amount: amount,
                 paymentStatus: paymentStatus,
@@ -459,8 +469,8 @@ struct AddEditEventView: View {
             modelContext.insert(event)
             EventReminderScheduler.reschedule(event: event)
         case .edit(let event):
-            event.startDate = startDate.startOfDay
-            event.endDate = endDate.startOfDay
+            event.startDate = startDate
+            event.endDate = endDate
             event.listedServices = names
             event.amount = amount
             event.paymentStatus = paymentStatus

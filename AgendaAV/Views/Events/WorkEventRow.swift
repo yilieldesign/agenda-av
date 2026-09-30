@@ -29,6 +29,12 @@ struct WorkEventRow: View {
                         .lineLimit(1)
                 }
 
+                if !event.scheduleLabel.isEmpty {
+                    Text(event.scheduleLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 HStack(spacing: 6) {
                     if let company = event.company {
                         Text(company.name)
