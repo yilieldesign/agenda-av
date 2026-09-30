@@ -820,7 +820,7 @@ function renderGoogleCard() {
   }
   const data = AgendaGoogle.load();
   const wrap = document.getElementById("googleClientWrap");
-  if (wrap) wrap.classList.toggle("hidden", Boolean(data.granted));
+  if (wrap) wrap.classList.toggle("hidden", Boolean(data.granted && AgendaGoogle.clientId()));
   if (!AgendaGoogle.clientId()) {
     status.textContent = "Copia el ID desde Google Cloud y pégalo arriba.";
     actions.innerHTML = "";
@@ -1561,7 +1561,7 @@ function startReminderWatch() {
 
 function registerReminderWorker() {
   if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=google-id2").catch(() => {});
 }
 
 function openEventForm(eventId) {
@@ -1789,6 +1789,10 @@ document.getElementById("googleCard")?.addEventListener("click", (event) => {
   if (event.target.id === "googleSync") syncGoogle(true);
   if (event.target.id === "googleDisconnect") disconnectGoogle();
   if (event.target.id === "saveGoogleClient") saveGoogleClientId();
+});
+document.getElementById("goAgendaGoogle")?.addEventListener("click", () => {
+  setTab("agenda");
+  document.getElementById("googleCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
 });
 document.getElementById("invoiceProfileCard").addEventListener("input", () => {
   saveProfile({
