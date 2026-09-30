@@ -250,6 +250,18 @@ function jobTotal(event) {
   return (Number(event.amount) || 0) * eventDayCount(event);
 }
 
+function jobNeedsCompletion(event) {
+  if (!event) return true;
+  if (event.needsCompletion) return true;
+  if (!event.companyId) return true;
+  if (!eventServices(event).length) return true;
+  return !(Number(event.amount) > 0);
+}
+
+function billableEvents() {
+  return state.events.filter((event) => !jobNeedsCompletion(event));
+}
+
 function jobOverlapsRange(event, start, end) {
   return event.startDate <= end && event.endDate >= start;
 }
@@ -313,7 +325,11 @@ function load() {
     event.activityName = event.activityName || "";
     event.startTime = normalizeTime(event.startTime);
     event.endTime = normalizeTime(event.endTime);
+    event.icsUid = event.icsUid || "";
     event.amount = parseAmount(event.amount);
+    if (event.needsCompletion == null && event.icsUid) {
+      event.needsCompletion = jobNeedsCompletion(event);
+    }
     rememberAmount(event.amount);
   });
   persist();
@@ -522,10 +538,12 @@ function renderDayPanel() {
             : ""}
           <div class="muted">${escapeHtml(company?.name || "Sin empresa")}</div>
           ${range}
-          <span class="badge ${event.paymentStatus}">${event.paymentStatus === "paid" ? "Pagado" : "Pendiente"}</span>
+          ${jobNeedsCompletion(event)
+            ? `<span class="badge incomplete">Completar</span>`
+            : `<span class="badge ${event.paymentStatus}">${event.paymentStatus === "paid" ? "Pagado" : "Pendiente"}</span>`}
           ${event.reminders?.length ? `<span class="bell" title="Con recordatorio">🔔</span>` : ""}
         </div>
-        <strong>${money(jobTotal(event))}</strong>
+        <strong>${jobNeedsCompletion(event) ? "—" : money(jobTotal(event))}</strong>
       </button>
     `;
   }).join("");
@@ -563,7 +581,7 @@ function reportRange() {
 }
 
 function summarizeRange(start, end) {
-  const events = state.events
+  const events = billableEvents()
     .filter((e) => jobOverlapsRange(e, start, end))
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
   const byCompany = {};
@@ -624,7 +642,7 @@ function monthlyEarnings(year) {
     const anchor = new Date(year, month, 1);
     const start = toISODate(startOfMonth(anchor));
     const end = toISODate(endOfMonth(anchor));
-    const started = state.events.filter((event) => jobStartsInRange(event, start, end));
+    const started = billableEvents().filter((event) => jobStartsInRange(event, start, end));
     const paid = started.filter((event) => event.paymentStatus === "paid");
     const pending = started.filter((event) => event.paymentStatus === "pending");
     rows.push({
@@ -700,6 +718,89 @@ function resetAppToFirstUse() {
     "agenda-av-profile-v1",
   ].forEach((key) => localStorage.removeItem(key));
   window.location.reload();
+}
+
+function icsEventKey(item) {
+  return `${item.uid || item.title || "evento"}::${item.startDate}::${item.startTime || ""}`;
+}
+
+function importParsedItems(items) {
+  const existing = new Set(state.events.map((event) => event.icsUid).filter(Boolean));
+  let added = 0;
+  let skipped = 0;
+  const created = [];
+  for (const item of items) {
+    if (!item?.startDate) continue;
+    const key = icsEventKey(item);
+    if (existing.has(key)) {
+      skipped += 1;
+      continue;
+    }
+    existing.add(key);
+    const startDate = item.startDate;
+    const endDate = item.endDate && item.endDate >= startDate ? item.endDate : startDate;
+    const startTime = normalizeTime(item.startTime);
+    let endTime = normalizeTime(item.endTime);
+    if (startDate === endDate && startTime && endTime && endTime <= startTime) endTime = "";
+    const event = {
+      id: uid(),
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      serviceIds: [],
+      projectName: "",
+      activityName: String(item.title || "Trabajo importado").slice(0, 80),
+      amount: 0,
+      paymentStatus: "pending",
+      notes: String(item.notes || "").slice(0, 500),
+      companyId: "",
+      reminders: [],
+      icsUid: key,
+      needsCompletion: true,
+    };
+    state.events.push(event);
+    created.push(event);
+    added += 1;
+  }
+  if (added) persist();
+  return { added, skipped, created };
+}
+
+async function importIcsFile(file) {
+  if (!file) return;
+  if (/\.zip$/i.test(file.name) || /zip/i.test(file.type || "")) {
+    window.alert("Google a veces exporta un ZIP. Ábrelo y elige el archivo .ics que va dentro.");
+    return;
+  }
+  let text = "";
+  try {
+    text = await file.text();
+  } catch (_) {
+    window.alert("No se pudo leer el archivo.");
+    return;
+  }
+  if (!/BEGIN:VEVENT/i.test(text)) {
+    window.alert("Ese archivo no parece un calendario .ics de Google.");
+    return;
+  }
+  const items = typeof AgendaIcs !== "undefined" ? AgendaIcs.parse(text) : [];
+  if (!items.length) {
+    window.alert("No se encontraron eventos en el archivo.");
+    return;
+  }
+  const { added, skipped, created } = importParsedItems(items);
+  if (created[0]) {
+    state.month = startOfMonth(parseISO(created[0].startDate));
+    state.selected = created[0].startDate;
+    setTab("agenda");
+  }
+  render();
+  if (added) {
+    showReminderToast(`Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.`);
+  } else if (skipped) {
+    showReminderToast("Esos eventos ya estaban en la agenda.");
+  }
 }
 
 function renderInvoiceProfile() {
@@ -1009,8 +1110,13 @@ function renderReports() {
     <div class="breakdown-row"><span>Pagado · ${summary.paid.count}</span><strong>${money(summary.paid.amount)}</strong></div>
     <div class="breakdown-row"><span>Pendiente · ${summary.pending.count}</span><strong>${money(summary.pending.amount)}</strong></div>
   `;
+  const pendingImport = state.events.filter(jobNeedsCompletion).length;
+  const jobsIntro = pendingImport
+    ? `<p class="muted">Hay ${pendingImport} trabajo${pendingImport === 1 ? "" : "s"} importado${pendingImport === 1 ? "" : "s"} por completar (empresa, servicio y monto). No salen en este reporte hasta que los completes.</p>`
+    : "";
   document.getElementById("jobsList").innerHTML = `
     <h3>Trabajos del período</h3>
+    ${jobsIntro}
     ${summary.events.map((event) => {
       const company = companyById(event.companyId);
       const paid = event.paymentStatus === "paid";
@@ -1303,6 +1409,7 @@ async function checkReminders(now = new Date()) {
   let changed = false;
   const dueMessages = [];
   for (const event of state.events) {
+    if (jobNeedsCompletion(event)) continue;
     const reminders = AgendaReminders.normalizeReminders(event.reminders);
     if (!reminders.length) continue;
     let eventChanged = false;
@@ -1362,7 +1469,11 @@ function openEventForm(eventId) {
   renderAmountSelect(event ? event.amount : "");
   form.activityName.value = event?.activityName || "";
   form.notes.value = event?.notes || "";
-  document.getElementById("formTitle").textContent = event ? "Editar trabajo" : "Nuevo trabajo";
+  document.getElementById("formTitle").textContent = event
+    ? (jobNeedsCompletion(event) ? "Completar trabajo" : "Editar trabajo")
+    : "Nuevo trabajo";
+  const importHint = document.getElementById("importHint");
+  if (importHint) importHint.classList.toggle("hidden", !(event && jobNeedsCompletion(event)));
   document.getElementById("deleteEvent").classList.toggle("hidden", !event);
   document.getElementById("formError").classList.add("hidden");
   document.querySelectorAll(".pay-btn").forEach((b) => b.classList.toggle("active", b.dataset.status === state.paymentStatus));
@@ -1556,6 +1667,12 @@ document.getElementById("printInvoice").onclick = printCurrentInvoice;
 document.getElementById("sendInvoice").onclick = () => sendCurrentInvoice().catch(() => printCurrentInvoice());
 document.getElementById("closeInvoice").onclick = closeInvoice;
 document.getElementById("resetApp").onclick = resetAppToFirstUse;
+document.getElementById("importIcs").onclick = () => document.getElementById("icsFile").click();
+document.getElementById("icsFile").addEventListener("change", (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  importIcsFile(file).catch(() => window.alert("No se pudo importar el calendario."));
+});
 document.getElementById("invoiceProfileCard").addEventListener("input", () => {
   saveProfile({
     name: document.getElementById("profileName")?.value.trim() || "",
@@ -1711,6 +1828,8 @@ document.getElementById("eventForm").onsubmit = async (event) => {
     notes: form.notes.value.trim(),
     companyId: state.selectedCompanyId,
     reminders,
+    icsUid: previous?.icsUid || "",
+    needsCompletion: false,
   };
   if (state.editingId) {
     state.events = state.events.map((e) => (e.id === state.editingId ? payload : e));

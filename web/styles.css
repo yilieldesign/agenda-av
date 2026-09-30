@@ -188,6 +188,7 @@ h1 { margin: 2px 0 0; font-size: 28px; }
 }
 .badge.paid { color: #15803d; background: #dcfce7; }
 .badge.pending { color: #c2410c; background: #ffedd5; }
+.badge.incomplete { color: #1d4ed8; background: #dbeafe; }
 .muted { color: var(--muted); font-size: 13px; }
 .row-between, .row-actions { display: flex; gap: 10px; justify-content: space-between; align-items: center; }
 .row-actions { margin-top: 12px; }

@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="manifest" href="manifest.webmanifest?v=sin-hora-pdf" />
-  <link rel="stylesheet" href="styles.css?v=sin-hora-pdf" />
+  <link rel="manifest" href="manifest.webmanifest?v=ics-import" />
+  <link rel="stylesheet" href="styles.css?v=ics-import" />
 </head>
 <body>
   <div class="phone">
@@ -69,6 +69,12 @@
         </div>
       </section>
       <section class="card">
+        <h3>Importar calendario</h3>
+        <p class="muted">En Google Calendar: Configuración → Importar y exportar → Exportar. Si llega un ZIP, ábrelo y elige el archivo .ics. Entran fechas, horas y el título; luego abres cada trabajo para poner empresa, servicio y monto.</p>
+        <input type="file" id="icsFile" accept=".ics,text/calendar" hidden />
+        <button type="button" class="secondary" id="importIcs">Importar archivo .ics</button>
+      </section>
+      <section class="card">
         <h3>Datos de este teléfono</h3>
         <p class="muted">Vuelve a dejar la app como el primer uso. Se borran trabajos, montos, nombre y todo lo guardado aquí.</p>
         <button type="button" class="danger" id="resetApp">Reiniciar a primer uso</button>
@@ -90,6 +96,7 @@
     <form class="sheet" id="eventForm">
       <div class="sheet-handle"></div>
       <h2 id="formTitle">Nuevo trabajo</h2>
+      <p class="muted hidden" id="importHint">Este trabajo vino del calendario. Completa empresa, servicio y monto para que salga en los reportes y el PDF.</p>
       <div class="datetime-grid">
         <label>Inicio
           <input type="date" name="startDate" required />
@@ -229,8 +236,9 @@
 
   <div id="reminderToast" class="reminder-toast hidden" role="status"></div>
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="pdf.js?v=sin-hora-pdf"></script>
-  <script src="reminders.js?v=sin-hora-pdf"></script>
-  <script src="app.js?v=sin-hora-pdf"></script>
+  <script src="ics.js?v=ics-import"></script>
+  <script src="pdf.js?v=ics-import"></script>
+  <script src="reminders.js?v=ics-import"></script>
+  <script src="app.js?v=ics-import"></script>
 </body>
 </html>
