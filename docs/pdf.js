@@ -210,18 +210,24 @@ function pdfString(text) {
     "\u00BF": "\\277",
     "\u00A1": "\\241",
     "\u00B0": "\\260",
+    "\u00B7": "-",
+    "\u00A0": " ",
     "\u2014": "-",
     "\u2013": "-",
+    "\u2022": "-",
     "\u201C": "\"",
     "\u201D": "\"",
+    "\u2018": "'",
     "\u2019": "'",
     "\u2026": "...",
   };
   let out = "";
   for (const ch of String(text ?? "")) {
+    const code = ch.charCodeAt(0);
     if (map[ch]) out += map[ch];
     else if (ch === "\\" || ch === "(" || ch === ")") out += `\\${ch}`;
-    else if (ch.charCodeAt(0) > 127) out += "?";
+    else if (code > 127 && code < 256) out += `\\${code.toString(8).padStart(3, "0")}`;
+    else if (code > 127) out += "-";
     else out += ch;
   }
   return `(${out})`;

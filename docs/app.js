@@ -388,7 +388,7 @@ function eventTitle(event) {
 function eventReportLabel(event) {
   const activity = (event.activityName || "").trim();
   const services = eventServicesLabel(event);
-  if (activity && services) return `${activity} · ${services}`;
+  if (activity && services) return `${activity} - ${services}`;
   return activity || services || "Trabajo";
 }
 

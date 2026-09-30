@@ -87,7 +87,7 @@ final class WorkEvent {
     var reportLabel: String {
         let activity = activityName.trimmingCharacters(in: .whitespacesAndNewlines)
         let services = listedServices.joined(separator: ", ")
-        if !activity.isEmpty && !services.isEmpty { return "\(activity) · \(services)" }
+        if !activity.isEmpty && !services.isEmpty { return "\(activity) - \(services)" }
         if !activity.isEmpty { return activity }
         return services.isEmpty ? "Trabajo" : services
     }
