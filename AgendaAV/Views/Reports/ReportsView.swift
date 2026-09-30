@@ -1,11 +1,15 @@
 import SwiftData
 import SwiftUI
 import UIKit
+import PDFKit
 
 struct ReportsView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \WorkEvent.startDate) private var events: [WorkEvent]
     @State private var period = ReportPeriod()
     @State private var pdfDocument: ReportPDFFile?
+    @State private var previewDocument: ReportPDFFile?
+    @State private var companyToPay: CompanyBreakdown?
     @AppStorage("invoiceIssuerName") private var invoiceName = ""
     @AppStorage("invoiceIssuerPhone") private var invoicePhone = ""
     @AppStorage("invoicePaymentNote") private var invoicePayment = ""
@@ -25,6 +29,7 @@ struct ReportsView: View {
                     }
                     invoiceProfileCard
                     companyBreakdown
+                    historyBreakdown
                     paymentBreakdown
                     jobsList
                     exportCard
@@ -35,6 +40,36 @@ struct ReportsView: View {
             .navigationTitle("Reportes")
             .sheet(item: $pdfDocument) { file in
                 ShareSheet(activityItems: [file.url])
+            }
+            .sheet(item: $previewDocument) { file in
+                NavigationStack {
+                    PDFPreviewView(url: file.url)
+                        .ignoresSafeArea(edges: .bottom)
+                        .navigationTitle("Vista previa")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cerrar") { previewDocument = nil }
+                            }
+                        }
+                }
+            }
+            .alert(
+                "Pago por empresa",
+                isPresented: Binding(
+                    get: { companyToPay != nil },
+                    set: { if !$0 { companyToPay = nil } }
+                )
+            ) {
+                Button("Cancelar", role: .cancel) { companyToPay = nil }
+                Button("Marcar pagado") {
+                    if let row = companyToPay {
+                        markCompanyPaid(row)
+                    }
+                    companyToPay = nil
+                }
+            } message: {
+                Text("Los trabajos pendientes de \(companyToPay?.name ?? "esta empresa") salen de Pendiente y quedan en el historial.")
             }
         }
     }
@@ -206,20 +241,28 @@ struct ReportsView: View {
         .background(.background, in: RoundedRectangle(cornerRadius: AVStyle.cardCorner, style: .continuous))
     }
 
+    private var pendingCompanyRows: [CompanyBreakdown] {
+        summary.byCompany.filter { !companyEvents($0, status: .pending).isEmpty }
+    }
+
+    private var paidCompanyRows: [CompanyBreakdown] {
+        summary.byCompany.filter { !companyEvents($0, status: .paid).isEmpty }
+    }
+
     private var companyBreakdown: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Desglose por empresa")
+            Text("Pendiente por empresa")
                 .font(.headline)
-            Text("Trabajos por fecha, monto y total. Genera una factura PDF para enviar y que te paguen.")
+            Text("Aquí solo salen los cobros que faltan. Cuando te paguen, usa Pago por empresa: salen de esta lista y quedan en el historial.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            if summary.byCompany.isEmpty {
-                Text("No hay trabajos en este período.")
+            if pendingCompanyRows.isEmpty {
+                Text("No hay cobros pendientes en este período.")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(summary.byCompany) { row in
-                    companyInvoiceBlock(row)
+                ForEach(pendingCompanyRows) { row in
+                    companyInvoiceBlock(row, mode: .pending)
                 }
             }
         }
@@ -228,9 +271,35 @@ struct ReportsView: View {
         .background(.background, in: RoundedRectangle(cornerRadius: AVStyle.cardCorner, style: .continuous))
     }
 
-    private func companyInvoiceBlock(_ row: CompanyBreakdown) -> some View {
-        let jobs = companyEvents(row)
-        let pending = jobs.filter { $0.paymentStatus == .pending }.reduce(Decimal.zero) { $0 + $1.billedAmount(in: period.closedRange) }
+    private var historyBreakdown: some View {
+        Group {
+            if !paidCompanyRows.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Historial")
+                        .font(.headline)
+                    Text("Trabajos ya cobrados. No entran en pendientes; sirven para ver lo ganado.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    ForEach(paidCompanyRows) { row in
+                        companyInvoiceBlock(row, mode: .history)
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.background, in: RoundedRectangle(cornerRadius: AVStyle.cardCorner, style: .continuous))
+            }
+        }
+    }
+
+    private enum CompanyBlockMode {
+        case pending
+        case history
+    }
+
+    private func companyInvoiceBlock(_ row: CompanyBreakdown, mode: CompanyBlockMode) -> some View {
+        let jobs = companyEvents(row, status: mode == .pending ? .pending : .paid)
+        let total = jobs.reduce(Decimal.zero) { $0 + $1.billedAmount(in: period.closedRange) }
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Circle()
@@ -239,12 +308,12 @@ struct ReportsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(row.name)
                         .font(.subheadline.weight(.semibold))
-                    Text("\(row.days) día\(row.days == 1 ? "" : "s") · \(row.jobCount) trabajo\(row.jobCount == 1 ? "" : "s")")
+                    Text("\(jobs.count) trabajo\(jobs.count == 1 ? "" : "s")")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text(CurrencyFormat.string(from: row.amount))
+                Text(CurrencyFormat.string(from: total))
                     .font(.subheadline.weight(.semibold))
             }
 
@@ -254,7 +323,7 @@ struct ReportsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(width: 88, alignment: .leading)
-                    Text(event.projectName)
+                    Text(event.reportLabel)
                         .font(.caption)
                         .lineLimit(2)
                     Spacer()
@@ -266,37 +335,64 @@ struct ReportsView: View {
             HStack {
                 Text("Total")
                 Spacer()
-                Text(CurrencyFormat.string(from: row.amount))
+                Text(CurrencyFormat.string(from: total))
             }
             .font(.subheadline.weight(.bold))
             .padding(.top, 4)
 
-            HStack {
-                Text("Pendiente de pago")
-                Spacer()
-                Text(CurrencyFormat.string(from: pending))
-            }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.orange)
+            if mode == .pending {
+                HStack {
+                    Text("Pendiente de pago")
+                    Spacer()
+                    Text(CurrencyFormat.string(from: total))
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.orange)
 
-            HStack(spacing: 8) {
                 Button {
-                    printInvoice(for: row)
+                    previewInvoice(for: row)
                 } label: {
-                    Label("Imprimir", systemImage: "printer")
+                    Label("Vista previa", systemImage: "eye")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .padding(.top, 4)
+
+                HStack(spacing: 8) {
+                    Button {
+                        printInvoice(for: row)
+                    } label: {
+                        Label("Imprimir", systemImage: "printer")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        shareInvoice(for: row)
+                    } label: {
+                        Label("Reporte PDF", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
 
                 Button {
-                    shareInvoice(for: row)
+                    companyToPay = row
                 } label: {
-                    Label("Reporte PDF", systemImage: "doc.richtext")
+                    Text("Pago por empresa")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
+                .tint(.green)
+            } else {
+                HStack {
+                    Text("Pagado · historial")
+                    Spacer()
+                    Text(CurrencyFormat.string(from: total))
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.green)
             }
-            .padding(.top, 4)
         }
         .padding(12)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -336,7 +432,12 @@ struct ReportsView: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(summary.events, id: \.uuid) { event in
-                    WorkEventRow(event: event)
+                    VStack(alignment: .leading, spacing: 4) {
+                        WorkEventRow(event: event)
+                        Text(event.paymentStatus == .paid ? "Historial" : "Pendiente")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(event.paymentStatus == .paid ? .green : .orange)
+                    }
                     if event.uuid != summary.events.last?.uuid {
                         Divider()
                     }
@@ -352,15 +453,23 @@ struct ReportsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Exportar e imprimir")
                 .font(.headline)
-            Text("Genera un PDF listo para imprimir o enviarlo por WhatsApp, Mail u otra app.")
+            Text("Mira el informe, imprímelo o envíalo como PDF.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+            Button {
+                previewPDF()
+            } label: {
+                Label("Vista previa", systemImage: "eye")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
 
             HStack(spacing: 12) {
                 Button {
                     sharePDF()
                 } label: {
-                    Label("Compartir PDF", systemImage: "square.and.arrow.up")
+                    Label("Reporte PDF", systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -397,16 +506,24 @@ struct ReportsView: View {
         PDFReportRenderer.makePDF(from: summary)
     }
 
-    private func sharePDF() {
-        let data = makePDFData()
-        let fileName = PDFReportRenderer.suggestedFileName(for: summary)
+    private func writePDF(_ data: Data, fileName: String) -> URL? {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         do {
             try data.write(to: url, options: .atomic)
-            pdfDocument = ReportPDFFile(url: url)
+            return url
         } catch {
-            // Si falla la escritura, no se presenta el share sheet.
+            return nil
         }
+    }
+
+    private func sharePDF() {
+        guard let url = writePDF(makePDFData(), fileName: PDFReportRenderer.suggestedFileName(for: summary)) else { return }
+        pdfDocument = ReportPDFFile(url: url)
+    }
+
+    private func previewPDF() {
+        guard let url = writePDF(makePDFData(), fileName: PDFReportRenderer.suggestedFileName(for: summary)) else { return }
+        previewDocument = ReportPDFFile(url: url)
     }
 
     private func printPDF() {
@@ -414,10 +531,18 @@ struct ReportsView: View {
         presentPrint(data, jobName: "Reporte")
     }
 
-    private func companyEvents(_ row: CompanyBreakdown) -> [WorkEvent] {
+    private func companyEvents(_ row: CompanyBreakdown, status: PaymentStatus? = nil) -> [WorkEvent] {
         summary.events
             .filter { ($0.company?.uuid.uuidString ?? "sin-empresa") == row.companyID }
+            .filter { status == nil || $0.paymentStatus == status }
             .sorted { $0.startDate < $1.startDate }
+    }
+
+    private func markCompanyPaid(_ row: CompanyBreakdown) {
+        for event in companyEvents(row, status: .pending) {
+            event.paymentStatus = .paid
+        }
+        try? modelContext.save()
     }
 
     private func invoiceDate(_ event: WorkEvent) -> String {
@@ -433,7 +558,7 @@ struct ReportsView: View {
         InvoicePDFRenderer.makePDF(
             companyName: row.name,
             periodTitle: summary.periodTitle,
-            events: companyEvents(row),
+            events: companyEvents(row, status: .pending),
             range: period.closedRange,
             issuer: InvoiceIssuer(
                 name: invoiceName,
@@ -444,15 +569,19 @@ struct ReportsView: View {
     }
 
     private func shareInvoice(for row: CompanyBreakdown) {
-        let data = invoiceData(for: row)
-        let fileName = InvoicePDFRenderer.suggestedFileName(companyName: row.name)
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        do {
-            try data.write(to: url, options: .atomic)
-            pdfDocument = ReportPDFFile(url: url)
-        } catch {
-            return
-        }
+        guard let url = writePDF(
+            invoiceData(for: row),
+            fileName: InvoicePDFRenderer.suggestedFileName(companyName: row.name)
+        ) else { return }
+        pdfDocument = ReportPDFFile(url: url)
+    }
+
+    private func previewInvoice(for row: CompanyBreakdown) {
+        guard let url = writePDF(
+            invoiceData(for: row),
+            fileName: InvoicePDFRenderer.suggestedFileName(companyName: row.name)
+        ) else { return }
+        previewDocument = ReportPDFFile(url: url)
     }
 
     private func printInvoice(for row: CompanyBreakdown) {
@@ -483,6 +612,22 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+struct PDFPreviewView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        view.document = PDFDocument(url: url)
+        return view
+    }
+
+    func updateUIView(_ uiView: PDFView, context: Context) {
+        uiView.document = PDFDocument(url: url)
+    }
 }
 
 #Preview {

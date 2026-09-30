@@ -9,6 +9,8 @@ final class WorkEvent {
     var startDate: Date
     var endDate: Date
     var projectName: String
+    /// Nombre opcional de la actividad (concierto, boda, etc.). Vacío = se muestran los servicios.
+    var activityName: String = ""
     /// JSON con los nombres de servicio. Un trabajo puede tener varios con un solo monto.
     var servicesRaw: String
     /// Monto en la moneda local del dispositivo, almacenado como Decimal.
@@ -76,6 +78,20 @@ final class WorkEvent {
         }
     }
 
+    var displayTitle: String {
+        let activity = activityName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !activity.isEmpty { return activity }
+        return projectName.isEmpty ? "Trabajo" : projectName
+    }
+
+    var reportLabel: String {
+        let activity = activityName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let services = listedServices.joined(separator: ", ")
+        if !activity.isEmpty && !services.isEmpty { return "\(activity) · \(services)" }
+        if !activity.isEmpty { return activity }
+        return services.isEmpty ? "Trabajo" : services
+    }
+
     var reminders: [EventReminder] {
         get {
             guard let data = remindersRaw.data(using: .utf8),
@@ -102,6 +118,7 @@ final class WorkEvent {
         amount: Decimal,
         paymentStatus: PaymentStatus = .pending,
         notes: String = "",
+        activityName: String = "",
         company: Company? = nil,
         createdAt: Date = .now,
         serviceNames: [String] = [],
@@ -113,6 +130,7 @@ final class WorkEvent {
         self.amount = amount
         self.paymentStatusRaw = paymentStatus.rawValue
         self.notes = notes
+        self.activityName = activityName.trimmingCharacters(in: .whitespacesAndNewlines)
         self.createdAt = createdAt
         self.company = company
         let names = serviceNames.isEmpty

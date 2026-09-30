@@ -97,11 +97,20 @@ enum PDFReportRenderer {
     }
 
     private static func drawFooter(page: Int) {
+        let creditFont = UIFont.systemFont(ofSize: 8, weight: .regular)
+        let creditWidth = (AVStyle.appCredit as NSString).size(withAttributes: [.font: creditFont]).width
+        AVStyle.appCredit.draw(
+            at: CGPoint(x: (pageRect.width - creditWidth) / 2, y: pageRect.height - 38),
+            withAttributes: [
+                .font: creditFont,
+                .foregroundColor: UIColor.gray
+            ]
+        )
         let text = "Reporte  ·  \(page)"
         let font = UIFont.systemFont(ofSize: 9, weight: .regular)
         let width = (text as NSString).size(withAttributes: [.font: font]).width
         text.draw(
-            at: CGPoint(x: (pageRect.width - width) / 2, y: pageRect.height - 28),
+            at: CGPoint(x: (pageRect.width - width) / 2, y: pageRect.height - 22),
             withAttributes: [
                 .font: font,
                 .foregroundColor: UIColor.gray
@@ -287,7 +296,7 @@ enum PDFReportRenderer {
 
             dateLabel(for: event).draw(in: CGRect(x: columns.date.minX, y: y, width: columns.date.width, height: 16), withAttributes: tableAttributes)
             (event.company?.name ?? "—").draw(in: CGRect(x: columns.company.minX, y: y, width: columns.company.width, height: 16), withAttributes: tableAttributes)
-            event.projectName.draw(in: CGRect(x: columns.project.minX, y: y, width: columns.project.width, height: 16), withAttributes: tableAttributes)
+            event.reportLabel.draw(in: CGRect(x: columns.project.minX, y: y, width: columns.project.width, height: 16), withAttributes: tableAttributes)
             let amount = CurrencyFormat.string(from: event.billedAmount(in: summary.period.closedRange))
             let amountBox = CGRect(x: columns.amount.minX, y: y, width: columns.amount.width, height: 16)
             amount.draw(in: amountBox, withAttributes: tableRightAttributes)

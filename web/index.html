@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="manifest" href="manifest.webmanifest?v=recordatorios" />
-  <link rel="stylesheet" href="styles.css?v=recordatorios" />
+  <link rel="manifest" href="manifest.webmanifest?v=preview" />
+  <link rel="stylesheet" href="styles.css?v=preview" />
 </head>
 <body>
   <div class="phone">
@@ -56,14 +56,16 @@
       <section class="card hidden" id="monthlyBreakdown"></section>
       <section class="card" id="invoiceProfileCard"></section>
       <section class="card" id="companyBreakdown"></section>
+      <section class="card hidden" id="historyBreakdown"></section>
       <section class="card" id="statusBreakdown"></section>
       <section class="card" id="jobsList"></section>
       <section class="card">
         <h3>Exportar e imprimir</h3>
-        <p class="muted">Genera un informe listo para imprimir, guardar como PDF o enviar.</p>
-        <div class="row-actions">
-          <button type="button" class="primary" id="sharePdf">Compartir / PDF</button>
+        <p class="muted">Mira el informe, imprímelo o envíalo como PDF.</p>
+        <div class="row-actions invoice-actions">
+          <button type="button" class="secondary" id="previewPdf">Vista previa</button>
           <button type="button" class="secondary" id="printPdf">Imprimir</button>
+          <button type="button" class="primary" id="sharePdf">Reporte PDF</button>
         </div>
       </section>
     </main>
@@ -76,6 +78,7 @@
         <span>📊</span> Reportes
       </button>
     </nav>
+    <p class="app-credit">Esta app fue creada por Eliezer Cruz</p>
   </div>
 
   <div class="overlay hidden" id="overlay">
@@ -88,6 +91,10 @@
       <label>Fin
         <input type="date" name="endDate" required />
       </label>
+      <label>Nombre de la actividad
+        <input type="text" name="activityName" maxlength="80" placeholder="Ej. Concierto, boda, festival…" />
+      </label>
+      <p class="muted">Opcional. Si lo dejas vacío, se usan los servicios.</p>
       <div class="dropdown-field">
         <label>Empresa / cliente
           <select id="companySelect">
@@ -101,7 +108,7 @@
           <strong>Servicios</strong>
           <button type="button" class="text-btn" id="newServiceBtn">+ Nuevo</button>
         </div>
-        <p class="muted">Marca uno o varios. El monto es por día y se multiplica si eliges más de un día.</p>
+        <p class="muted">Toca el nombre para marcarlo. El lápiz sirve para cambiarlo o quitarlo de la lista.</p>
         <div id="serviceChips"></div>
       </div>
       <label>Monto por día
@@ -171,15 +178,17 @@
 
   <div class="overlay hidden" id="serviceOverlay">
     <form class="sheet" id="serviceForm">
-      <h2>Nuevo servicio</h2>
+      <h2 id="serviceFormTitle">Nuevo servicio</h2>
       <label>Nombre del servicio
         <input type="text" name="name" required placeholder="Ej. Camarógrafo, Streaming, Gaffer" />
       </label>
-      <p class="muted">Queda guardado en la lista para agendarlo más rápido la próxima vez.</p>
+      <p class="muted" id="serviceFormHint">Queda guardado en la lista para agendarlo más rápido la próxima vez.</p>
+      <p class="error hidden" id="serviceFormError"></p>
       <div class="row-actions">
         <button type="button" class="secondary" id="cancelService">Cancelar</button>
         <button type="submit" class="primary">Guardar</button>
       </div>
+      <button type="button" class="danger hidden" id="deleteService">Eliminar servicio</button>
     </form>
   </div>
 
@@ -197,8 +206,8 @@
 
   <div id="reminderToast" class="reminder-toast hidden" role="status"></div>
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="pdf.js?v=recordatorios"></script>
-  <script src="reminders.js?v=recordatorios"></script>
-  <script src="app.js?v=recordatorios"></script>
+  <script src="pdf.js?v=preview"></script>
+  <script src="reminders.js?v=preview"></script>
+  <script src="app.js?v=preview"></script>
 </body>
 </html>

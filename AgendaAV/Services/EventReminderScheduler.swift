@@ -94,7 +94,7 @@ enum EventReminderScheduler {
 
     static func notificationTitle(for event: WorkEvent) -> String {
         let company = event.company?.name ?? "Trabajo"
-        let services = event.projectName.isEmpty ? "Trabajo" : event.projectName
+        let services = event.reportLabel
         let date = event.startDate.formatted(
             .dateTime.day().month(.abbreviated).locale(Locale(identifier: "es_DO"))
         )

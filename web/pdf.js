@@ -9,6 +9,11 @@ const InvoicePDF = {
     let y = 0;
 
     const flushPage = () => {
+      lines.push("BT");
+      lines.push("/F1 8 Tf");
+      lines.push(`${margin.toFixed(1)} 24 Td`);
+      lines.push(`${pdfString("Esta app fue creada por Eliezer Cruz")} Tj`);
+      lines.push("ET");
       pages.push(lines.splice(0, lines.length).join("\n"));
     };
 
@@ -67,7 +72,6 @@ const InvoicePDF = {
     lines.push("1 1 1 rg");
     text(margin + 8, y, 10, true, "Fecha");
     text(margin + 130, y, 10, true, "Trabajo");
-    text(pageW - margin - 118, y, 10, true, "Estado");
     text(pageW - margin - 52, y, 10, true, "Monto");
     lines.push("0 0 0 rg");
     y -= 26;
@@ -80,8 +84,7 @@ const InvoicePDF = {
         lines.push("0 0 0 rg");
       }
       text(margin + 8, y, 10, false, job.date);
-      text(margin + 130, y, 10, false, clip(job.project, 34));
-      text(pageW - margin - 118, y, 9, false, job.status);
+      text(margin + 130, y, 10, false, clip(job.project, 42));
       text(pageW - margin - 70, y, 10, true, job.amount);
       y -= 18;
     });
@@ -104,8 +107,10 @@ const InvoicePDF = {
       });
       y -= 8;
     }
-    ensure(24);
+    ensure(36);
     text(margin, y, 9, false, "Documento generado para cobro de servicios audiovisuales.");
+    y -= 14;
+    text(margin, y, 8, false, "Esta app fue creada por Eliezer Cruz");
 
     flushPage();
 

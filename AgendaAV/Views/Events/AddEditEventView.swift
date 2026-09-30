@@ -15,9 +15,11 @@ struct AddEditEventView: View {
     @State private var amount: Decimal
     @State private var paymentStatus: PaymentStatus
     @State private var notes: String
+    @State private var activityName: String
     @State private var selectedCompanyId: UUID?
     @State private var showingCompanyEditor = false
     @State private var showingServiceEditor = false
+    @State private var editingService: CatalogService?
     @State private var showingDeleteConfirm = false
     @State private var validationMessage: String?
     @State private var reminderKinds: Set<EventReminder.Kind> = []
@@ -40,6 +42,7 @@ struct AddEditEventView: View {
             _amount = State(initialValue: 0)
             _paymentStatus = State(initialValue: .pending)
             _notes = State(initialValue: "")
+            _activityName = State(initialValue: "")
             _selectedCompanyId = State(initialValue: nil)
             _reminderTime = State(initialValue: Self.defaultReminderTime)
         case .edit(let event):
@@ -49,6 +52,7 @@ struct AddEditEventView: View {
             _amount = State(initialValue: event.amount)
             _paymentStatus = State(initialValue: event.paymentStatus)
             _notes = State(initialValue: event.notes)
+            _activityName = State(initialValue: event.activityName)
             _selectedCompanyId = State(initialValue: event.company?.uuid)
             let existing = event.reminders
             _reminderKinds = State(initialValue: Set(existing.map(\.kind)))
@@ -83,14 +87,33 @@ struct AddEditEventView: View {
                     }
                 }
 
+                Section("Actividad") {
+                    TextField("Nombre de la actividad", text: $activityName)
+                    Text("Opcional. Ej. concierto, boda, festival. Si lo dejas vacío se usan los servicios.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("Servicios") {
                     Text("Puedes marcar varios. El monto es por día y se multiplica si eliges más de un día.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     ForEach(services) { service in
-                        Toggle(service.name, isOn: serviceToggle(service.uuid))
+                        HStack {
+                            Toggle(service.name, isOn: serviceToggle(service.uuid))
+                            Button {
+                                editingService = service
+                                showingServiceEditor = true
+                            } label: {
+                                Image(systemName: "pencil.circle")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Editar \(service.name)")
+                        }
                     }
                     Button("Nuevo servicio", systemImage: "plus") {
+                        editingService = nil
                         showingServiceEditor = true
                     }
 
@@ -220,10 +243,16 @@ struct AddEditEventView: View {
                     selectedCompanyId = created.uuid
                 }
             }
-            .sheet(isPresented: $showingServiceEditor) {
-                ServiceEditorSheet { created in
-                    selectedServiceIds.insert(created.uuid)
-                }
+            .sheet(isPresented: $showingServiceEditor, onDismiss: { editingService = nil }) {
+                ServiceEditorSheet(
+                    service: editingService,
+                    onCreated: { created in
+                        selectedServiceIds.insert(created.uuid)
+                    },
+                    onDeleted: { id in
+                        selectedServiceIds.remove(id)
+                    }
+                )
             }
         }
     }
@@ -365,6 +394,7 @@ struct AddEditEventView: View {
                 amount: amount,
                 paymentStatus: paymentStatus,
                 notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+                activityName: activityName,
                 company: selectedCompany,
                 serviceNames: names,
                 reminders: reminders
@@ -378,6 +408,7 @@ struct AddEditEventView: View {
             event.amount = amount
             event.paymentStatus = paymentStatus
             event.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+            event.activityName = activityName.trimmingCharacters(in: .whitespacesAndNewlines)
             event.company = selectedCompany
             event.reminders = reminders
             EventReminderScheduler.reschedule(event: event)

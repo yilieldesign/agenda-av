@@ -267,7 +267,7 @@ h1 { margin: 2px 0 0; font-size: 28px; }
   grid-template-columns: 1fr 1fr;
   background: white;
   border-top: 1px solid #e5ece9;
-  padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
+  padding: 8px 8px 4px;
 }
 .tab {
   border: 0;
@@ -279,6 +279,15 @@ h1 { margin: 2px 0 0; font-size: 28px; }
 }
 .tab.active { color: var(--accent); }
 .tab span { display: block; }
+.app-credit {
+  margin: 0;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  background: white;
+  padding: 0 12px calc(8px + env(safe-area-inset-bottom));
+}
 
 .overlay {
   position: fixed;
@@ -350,6 +359,31 @@ input, textarea, select {
   color: var(--ink);
 }
 .chip.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.service-chip {
+  display: inline-flex;
+  align-items: stretch;
+  margin: 0 6px 8px 0;
+}
+.service-chip .chip {
+  margin: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.chip-edit {
+  border: 1px solid #d7e0dc;
+  border-left: 0;
+  border-radius: 0 99px 99px 0;
+  padding: 8px 10px;
+  background: #f7faf9;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.service-chip:has(.chip.active) .chip-edit {
   background: var(--accent);
   color: white;
   border-color: var(--accent);
@@ -453,7 +487,37 @@ select {
   font-weight: 700;
   margin-top: 4px;
 }
-.invoice-actions { margin-top: 10px; }
+.paid-line {
+  display: flex;
+  justify-content: space-between;
+  color: #15803d;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+.invoice-actions { margin-top: 8px; flex-wrap: wrap; }
+.preview-btn {
+  width: 100%;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #e8eeec;
+  color: var(--ink);
+}
+.pay-company-btn {
+  width: 100%;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #dcfce7;
+  color: #15803d;
+}
 .invoice-sheet { max-height: 94dvh; }
 .invoice-preview {
   font-size: 13px;
@@ -467,6 +531,12 @@ select {
 .invoice-preview th, .invoice-preview td { padding: 6px 4px; text-align: left; border-bottom: 1px solid #e5ece9; }
 .invoice-preview td:last-child, .invoice-preview th:last-child { text-align: right; }
 .invoice-preview tfoot th { border-top: 2px solid var(--ink); border-bottom: 0; padding-top: 10px; }
+.invoice-preview .credit-line {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
 #closeInvoice { width: 100%; margin-top: 8px; }
 .profile-grid label { margin-top: 0; }
 
@@ -494,7 +564,7 @@ select {
     overflow: visible;
   }
   body { background: white; }
-  .phone, .overlay, .tabbar, .reminder-toast { display: none !important; }
+  .phone, .overlay, .tabbar, .app-credit, .reminder-toast { display: none !important; }
   .print-root, .print-root[hidden] {
     display: block !important;
     padding: 24px;
@@ -512,5 +582,11 @@ select {
     margin-top: 16px;
     border-top: 2px solid #122027;
     padding-top: 10px;
+  }
+  .print-root .credit-line {
+    margin-top: 24px;
+    text-align: center;
+    color: #5b6b73;
+    font-size: 11px;
   }
 }

@@ -1,5 +1,6 @@
 const STORAGE_KEY = "agenda-av-web-v3";
 const PROFILE_KEY = "agenda-av-profile-v2";
+const APP_CREDIT = "Esta app fue creada por Eliezer Cruz";
 const PALETTE = ["#DC2626", "#6B7280", "#2563EB", "#84CC16", "#7C3AED", "#0F766E", "#C2410C", "#A16207"];
 
 const REAL_COMPANIES = [
@@ -32,7 +33,9 @@ const state = {
   selectedCompanyId: null,
   selectedServiceIds: [],
   editingCompanyId: null,
+  editingServiceId: null,
   activeInvoiceId: null,
+  previewMode: "company",
   reminderKinds: new Set(),
   reminderTime: "08:00",
   customReminders: [],
@@ -182,6 +185,7 @@ function load() {
   sortCatalog();
   state.events.forEach((event) => {
     event.reminders = AgendaReminders.normalizeReminders(event.reminders);
+    event.activityName = event.activityName || "";
   });
   persist();
 }
@@ -212,19 +216,9 @@ function ensureCatalog() {
       state.companies.push({ ...wanted });
     }
   });
-  REAL_SERVICES.forEach((wanted) => {
-    const existing = state.services.find((s) =>
-      s.id === wanted.id || s.name.toLowerCase() === wanted.name.toLowerCase()
-    );
-    if (existing) {
-      existing.name = wanted.name;
-    } else {
-      state.services.push({ ...wanted });
-    }
-  });
-  state.events.forEach((event) => {
-    eventServices(event).forEach((name) => rememberService(name));
-  });
+  if (!state.services.length) {
+    state.services = REAL_SERVICES.map((item) => ({ ...item }));
+  }
 }
 
 function pruneUnusedCatalog() {
@@ -232,14 +226,6 @@ function pruneUnusedCatalog() {
   state.companies = state.companies.filter((company) => {
     const isReal = REAL_COMPANIES.some((item) => item.id === company.id || item.name.toLowerCase() === company.name.toLowerCase());
     return isReal || usedCompanyIds.has(company.id);
-  });
-
-  const realServiceNames = new Set(REAL_SERVICES.map((item) => item.name.toLowerCase()));
-  const usedServiceIds = new Set(state.events.flatMap((event) => event.serviceIds || []));
-  const usedServiceNames = new Set(state.events.flatMap((event) => eventServices(event).map((name) => name.toLowerCase())));
-  state.services = state.services.filter((service) => {
-    if (realServiceNames.has(service.name.toLowerCase())) return true;
-    return usedServiceIds.has(service.id) || usedServiceNames.has(service.name.toLowerCase());
   });
 }
 
@@ -278,9 +264,22 @@ function eventServices(event) {
   return [];
 }
 
-function eventTitle(event) {
+function eventServicesLabel(event) {
   const names = eventServices(event);
-  return names.length ? names.join(", ") : (event.projectName || "Trabajo");
+  return names.length ? names.join(", ") : (event.projectName || "");
+}
+
+function eventTitle(event) {
+  const activity = (event.activityName || "").trim();
+  if (activity) return activity;
+  return eventServicesLabel(event) || "Trabajo";
+}
+
+function eventReportLabel(event) {
+  const activity = (event.activityName || "").trim();
+  const services = eventServicesLabel(event);
+  if (activity && services) return `${activity} · ${services}`;
+  return activity || services || "Trabajo";
 }
 
 function rememberService(name) {
@@ -383,6 +382,9 @@ function renderDayPanel() {
         <span class="bar" style="--c:${company?.color || "#6B7280"}"></span>
         <div>
           <strong>${escapeHtml(eventTitle(event))}</strong>
+          ${(event.activityName || "").trim() && eventServicesLabel(event)
+            ? `<div class="muted">${escapeHtml(eventServicesLabel(event))}</div>`
+            : ""}
           <div class="muted">${escapeHtml(company?.name || "Sin empresa")}</div>
           ${range}
           <span class="badge ${event.paymentStatus}">${event.paymentStatus === "paid" ? "Pagado" : "Pendiente"}</span>
@@ -560,10 +562,89 @@ function renderInvoiceProfile() {
   `;
 }
 
+function eventsAmount(events) {
+  return events.reduce((sum, event) => sum + jobTotal(event), 0);
+}
+
+function companyRowsByStatus(summary, status) {
+  return summary.companies
+    .map((company) => {
+      const events = company.events.filter((event) => event.paymentStatus === status);
+      return {
+        ...company,
+        events,
+        jobs: events.length,
+        amount: eventsAmount(events),
+        pendingAmount: status === "pending" ? eventsAmount(events) : 0,
+      };
+    })
+    .filter((company) => company.events.length);
+}
+
+function jobLinesHTML(events) {
+  return events.map((event) => `
+    <div class="job-line">
+      <span class="date">${escapeHtml(formatJobDate(event))}</span>
+      <span>${escapeHtml(eventReportLabel(event))}</span>
+      <strong>${money(jobTotal(event))}</strong>
+    </div>
+  `).join("");
+}
+
+function companyCardHTML(company, mode) {
+  const pending = mode === "pending";
+  return `
+    <article class="company-block-card">
+      <div class="breakdown-row">
+        <div>
+          <span class="swatch" style="background:${company.color}"></span>
+          <strong>${escapeHtml(company.name)}</strong>
+          <div class="muted">${company.jobs} trabajo${company.jobs === 1 ? "" : "s"}</div>
+        </div>
+        <strong>${money(company.amount)}</strong>
+      </div>
+      ${jobLinesHTML(company.events)}
+      <div class="total-line"><span>Total</span><span>${money(company.amount)}</span></div>
+      ${pending ? `
+        <div class="pending-line"><span>Pendiente de pago</span><span>${money(company.pendingAmount)}</span></div>
+        <button type="button" class="secondary preview-btn" data-preview-company="${company.id}">Vista previa</button>
+        <div class="row-actions invoice-actions">
+          <button type="button" class="secondary" data-print-company="${company.id}">Imprimir</button>
+          <button type="button" class="primary" data-invoice="${company.id}">Reporte PDF</button>
+        </div>
+        <button type="button" class="pay-company-btn" data-pay-company="${company.id}">Pago por empresa</button>
+      ` : `
+        <div class="paid-line"><span>Pagado · historial</span><span>${money(company.amount)}</span></div>
+      `}
+    </article>
+  `;
+}
+
+function markCompanyPaid(companyId) {
+  const summary = summarize();
+  const company = summary.companies.find((item) => item.id === companyId);
+  if (!company) return;
+  const pending = company.events.filter((event) => event.paymentStatus === "pending");
+  if (!pending.length) return;
+  const label = pending.length === 1 ? "1 trabajo pendiente" : `${pending.length} trabajos pendientes`;
+  const ok = window.confirm(
+    `¿Marcar como pagados los ${label} de ${company.name}?\n\nSalen de Pendiente y quedan en el historial.`
+  );
+  if (!ok) return;
+  const ids = new Set(pending.map((event) => event.id));
+  state.events.forEach((event) => {
+    if (ids.has(event.id)) event.paymentStatus = "paid";
+  });
+  persist();
+  render();
+}
+
 function companyInvoice(companyId) {
   const summary = summarize();
   const company = summary.companies.find((c) => c.id === companyId);
   if (!company) return null;
+  const jobs = company.events.filter((event) => event.paymentStatus === "pending");
+  if (!jobs.length) return null;
   const profile = loadProfile();
   return {
     issued: formatDate(new Date(), { day: "numeric", month: "long", year: "numeric" }),
@@ -572,14 +653,14 @@ function companyInvoice(companyId) {
     paymentNote: profile.payment,
     companyName: company.name,
     period: formatRange(summary.start, summary.end),
-    jobs: company.events.map((event) => ({
+    jobs: jobs.map((event) => ({
       date: formatJobDate(event),
-      project: eventTitle(event),
-      status: event.paymentStatus === "paid" ? "Pagado" : "Pendiente",
+      project: eventReportLabel(event),
+      status: "",
       amount: money(jobTotal(event)),
       amountRaw: jobTotal(event),
     })),
-    total: money(company.amount),
+    total: money(eventsAmount(jobs)),
     fileName: `Reporte-${(company.name || "cliente").replace(/[^\wáéíóúñÁÉÍÓÚÑ]+/gi, "-")}.pdf`,
   };
 }
@@ -589,7 +670,6 @@ function invoiceHTML(inv) {
     <tr>
       <td>${escapeHtml(job.date)}</td>
       <td>${escapeHtml(job.project)}</td>
-      <td>${escapeHtml(job.status)}</td>
       <td>${escapeHtml(job.amount)}</td>
     </tr>
   `).join("");
@@ -600,31 +680,45 @@ function invoiceHTML(inv) {
     <p><strong>Para:</strong> ${escapeHtml(inv.companyName)}</p>
     <p><strong>Período:</strong> ${escapeHtml(inv.period)}</p>
     <table>
-      <thead><tr><th>Fecha</th><th>Trabajo</th><th>Estado</th><th>Monto</th></tr></thead>
+      <thead><tr><th>Fecha</th><th>Trabajo</th><th>Monto</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot>
-        <tr><th colspan="3">Total</th><th>${escapeHtml(inv.total)}</th></tr>
+        <tr><th colspan="2">Total</th><th>${escapeHtml(inv.total)}</th></tr>
       </tfoot>
     </table>
     ${inv.paymentNote ? `<p><strong>Pago:</strong> ${escapeHtml(inv.paymentNote)}</p>` : ""}
     <p class="muted">Documento para cobro de servicios audiovisuales.</p>
+    <p class="credit-line">${APP_CREDIT}</p>
   `;
 }
 
 function openInvoice(companyId) {
   const inv = companyInvoice(companyId);
   if (!inv) return;
+  state.previewMode = "company";
   state.activeInvoiceId = companyId;
   document.getElementById("invoicePreview").innerHTML = `<div class="invoice-preview">${invoiceHTML(inv)}</div>`;
+  document.getElementById("invoiceOverlay").classList.remove("hidden");
+}
+
+function openReportPreview() {
+  state.previewMode = "period";
+  state.activeInvoiceId = null;
+  document.getElementById("invoicePreview").innerHTML = `<div class="invoice-preview">${reportHTML(summarize())}</div>`;
   document.getElementById("invoiceOverlay").classList.remove("hidden");
 }
 
 function closeInvoice() {
   document.getElementById("invoiceOverlay").classList.add("hidden");
   state.activeInvoiceId = null;
+  state.previewMode = "company";
 }
 
 function printCurrentInvoice() {
+  if (state.previewMode === "period") {
+    printReport();
+    return;
+  }
   const inv = companyInvoice(state.activeInvoiceId);
   if (!inv) return;
   const root = document.getElementById("printRoot");
@@ -634,6 +728,10 @@ function printCurrentInvoice() {
 }
 
 async function sendCurrentInvoice() {
+  if (state.previewMode === "period") {
+    await shareReport();
+    return;
+  }
   const inv = companyInvoice(state.activeInvoiceId);
   if (!inv) return;
   const blob = InvoicePDF.build(inv);
@@ -652,6 +750,12 @@ async function sendCurrentInvoice() {
   a.download = inv.fileName;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+async function shareCompanyInvoice(companyId) {
+  state.previewMode = "company";
+  state.activeInvoiceId = companyId;
+  await sendCurrentInvoice();
 }
 
 function renderReports() {
@@ -721,35 +825,22 @@ function renderReports() {
     monthsBox.innerHTML = "";
   }
 
+  const pendingCompanies = companyRowsByStatus(summary, "pending");
+  const paidCompanies = companyRowsByStatus(summary, "paid");
   document.getElementById("companyBreakdown").innerHTML = `
-    <h3>Desglose por empresa</h3>
-    <p class="muted">Cada cliente muestra sus trabajos por fecha y el total a cobrar. Genera un reporte PDF para enviarlo y que te paguen.</p>
-    ${summary.companies.length ? summary.companies.map((c) => `
-      <article class="company-block-card">
-        <div class="breakdown-row">
-          <div>
-            <span class="swatch" style="background:${c.color}"></span>
-            <strong>${escapeHtml(c.name)}</strong>
-            <div class="muted">${c.days.size} día${c.days.size === 1 ? "" : "s"} · ${c.jobs} trabajo${c.jobs === 1 ? "" : "s"}</div>
-          </div>
-          <strong>${money(c.amount)}</strong>
-        </div>
-        ${c.events.map((event) => `
-          <div class="job-line">
-            <span class="date">${escapeHtml(formatJobDate(event))}</span>
-            <span>${escapeHtml(eventTitle(event))}</span>
-            <strong>${money(jobTotal(event))}</strong>
-          </div>
-        `).join("")}
-        <div class="total-line"><span>Total</span><span>${money(c.amount)}</span></div>
-        <div class="pending-line"><span>Pendiente de pago</span><span>${money(c.pendingAmount)}</span></div>
-        <div class="row-actions invoice-actions">
-          <button type="button" class="secondary" data-print-company="${c.id}">Imprimir</button>
-          <button type="button" class="primary" data-invoice="${c.id}">Reporte PDF</button>
-        </div>
-      </article>
-    `).join("") : `<p class="muted">No hay trabajos en este período.</p>`}
+    <h3>Pendiente por empresa</h3>
+    <p class="muted">Aquí solo salen los cobros que faltan. Cuando te paguen, usa Pago por empresa: salen de esta lista y quedan en el historial.</p>
+    ${pendingCompanies.length
+      ? pendingCompanies.map((company) => companyCardHTML(company, "pending")).join("")
+      : `<p class="muted">No hay cobros pendientes en este período.</p>`}
   `;
+  const historyBox = document.getElementById("historyBreakdown");
+  historyBox.classList.toggle("hidden", !paidCompanies.length);
+  historyBox.innerHTML = paidCompanies.length ? `
+    <h3>Historial</h3>
+    <p class="muted">Trabajos ya cobrados. No entran en pendientes; sirven para ver lo ganado.</p>
+    ${paidCompanies.map((company) => companyCardHTML(company, "history")).join("")}
+  ` : "";
   renderInvoiceProfile();
   document.getElementById("statusBreakdown").innerHTML = `
     <h3>Desglose por estado</h3>
@@ -760,7 +851,8 @@ function renderReports() {
     <h3>Trabajos del período</h3>
     ${summary.events.map((event) => {
       const company = companyById(event.companyId);
-      return `<div class="breakdown-row"><div><strong>${escapeHtml(eventTitle(event))}</strong><div class="muted">${event.startDate}${event.startDate !== event.endDate ? " – " + event.endDate : ""} · ${escapeHtml(company?.name || "")}</div></div><strong>${money(jobTotal(event))}</strong></div>`;
+      const paid = event.paymentStatus === "paid";
+      return `<div class="breakdown-row"><div><strong>${escapeHtml(eventReportLabel(event))}</strong><div class="muted">${event.startDate}${event.startDate !== event.endDate ? " – " + event.endDate : ""} · ${escapeHtml(company?.name || "")} · ${paid ? "Historial" : "Pendiente"}</div></div><strong>${money(jobTotal(event))}</strong></div>`;
     }).join("") || `<p class="muted">Ajusta el rango para ver resultados.</p>`}
   `;
 }
@@ -769,7 +861,7 @@ function reportHTML(summary) {
   const rows = summary.events.map((event) => {
     const company = companyById(event.companyId);
     const fecha = event.startDate === event.endDate ? event.startDate : `${event.startDate} – ${event.endDate}`;
-    return `<tr><td>${fecha}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventTitle(event))}</td><td>${money(jobTotal(event))}</td></tr>`;
+    return `<tr><td>${fecha}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventReportLabel(event))}</td><td>${money(jobTotal(event))}</td></tr>`;
   }).join("");
   const year = state.report.month.getFullYear();
   const months = state.report.kind === "yearly"
@@ -795,6 +887,7 @@ function reportHTML(summary) {
       <tbody>${rows || `<tr><td colspan="4">Sin trabajos</td></tr>`}</tbody>
     </table>
     <p style="text-align:right;font-weight:700">TOTAL GENERAL ${money(summary.total)}</p>
+    <p class="credit-line">${APP_CREDIT}</p>
   `;
 }
 
@@ -836,9 +929,12 @@ function renderCompanySelect() {
 function renderServiceChips() {
   const selected = new Set(state.selectedServiceIds);
   document.getElementById("serviceChips").innerHTML = sortedServices().map((s) => `
-    <button type="button" class="chip ${selected.has(s.id) ? "active" : ""}" data-service-toggle="${s.id}">
-      ${escapeHtml(s.name)}
-    </button>
+    <div class="service-chip">
+      <button type="button" class="chip ${selected.has(s.id) ? "active" : ""}" data-service-toggle="${s.id}">
+        ${escapeHtml(s.name)}
+      </button>
+      <button type="button" class="chip-edit" data-edit-service="${s.id}" aria-label="Editar ${escapeHtml(s.name)}">✎</button>
+    </div>
   `).join("") || `<p class="muted">Crea el primer servicio con + Nuevo.</p>`;
 }
 
@@ -995,7 +1091,7 @@ function notificationTitleFor(event) {
   const company = companyById(event.companyId)?.name || "Trabajo";
   return AgendaReminders.reminderTitle({
     company,
-    services: eventTitle(event),
+    services: eventReportLabel(event),
     dateText: jobDateLabel(event.startDate),
   });
 }
@@ -1089,6 +1185,7 @@ function openEventForm(eventId) {
   form.startDate.value = event?.startDate || state.selected;
   form.endDate.value = event?.endDate || state.selected;
   form.amount.value = event?.amount ?? "";
+  form.activityName.value = event?.activityName || "";
   form.notes.value = event?.notes || "";
   document.getElementById("formTitle").textContent = event ? "Editar trabajo" : "Nuevo trabajo";
   document.getElementById("deleteEvent").classList.toggle("hidden", !event);
@@ -1103,6 +1200,38 @@ function openEventForm(eventId) {
 
 function closeEventForm() {
   document.getElementById("overlay").classList.add("hidden");
+}
+
+function openServiceForm(id) {
+  state.editingServiceId = id || null;
+  const service = serviceById(id);
+  const form = document.getElementById("serviceForm");
+  const error = document.getElementById("serviceFormError");
+  form.name.value = service?.name || "";
+  document.getElementById("serviceFormTitle").textContent = service ? "Editar servicio" : "Nuevo servicio";
+  document.getElementById("serviceFormHint").textContent = service
+    ? "Cambia el nombre o quítalo de la lista. Los trabajos ya agendados conservan lo que tenían."
+    : "Queda guardado en la lista para agendarlo más rápido la próxima vez.";
+  document.getElementById("deleteService").classList.toggle("hidden", !service);
+  error.classList.add("hidden");
+  error.textContent = "";
+  document.getElementById("serviceOverlay").classList.remove("hidden");
+}
+
+function closeServiceForm() {
+  document.getElementById("serviceOverlay").classList.add("hidden");
+  state.editingServiceId = null;
+}
+
+function deleteSavedService() {
+  const service = serviceById(state.editingServiceId);
+  if (!service) return;
+  if (!confirm(`¿Quitar "${service.name}" de la lista?\n\nLos trabajos ya agendados no se borran.`)) return;
+  state.selectedServiceIds = state.selectedServiceIds.filter((id) => id !== service.id);
+  state.services = state.services.filter((item) => item.id !== service.id);
+  persist();
+  closeServiceForm();
+  renderServiceChips();
 }
 
 function openCompanyForm(id) {
@@ -1141,15 +1270,29 @@ function render() {
 }
 
 document.addEventListener("click", (event) => {
+  const previewCompany = event.target.closest("[data-preview-company]");
+  if (previewCompany) {
+    openInvoice(previewCompany.dataset.previewCompany);
+    return;
+  }
   const invoiceBtn = event.target.closest("[data-invoice]");
   if (invoiceBtn) {
-    openInvoice(invoiceBtn.dataset.invoice);
+    shareCompanyInvoice(invoiceBtn.dataset.invoice).catch(() => {
+      state.activeInvoiceId = invoiceBtn.dataset.invoice;
+      printCurrentInvoice();
+    });
     return;
   }
   const printCompany = event.target.closest("[data-print-company]");
   if (printCompany) {
+    state.previewMode = "company";
     state.activeInvoiceId = printCompany.dataset.printCompany;
     printCurrentInvoice();
+    return;
+  }
+  const payCompany = event.target.closest("[data-pay-company]");
+  if (payCompany) {
+    markCompanyPaid(payCompany.dataset.payCompany);
     return;
   }
   const day = event.target.closest("[data-day]");
@@ -1161,6 +1304,11 @@ document.addEventListener("click", (event) => {
   const edit = event.target.closest("[data-edit]");
   if (edit) {
     openEventForm(edit.dataset.edit);
+    return;
+  }
+  const editService = event.target.closest("[data-edit-service]");
+  if (editService) {
+    openServiceForm(editService.dataset.editService);
     return;
   }
   const chip = event.target.closest("[data-service-toggle]");
@@ -1219,17 +1367,16 @@ document.getElementById("nextMonth").onclick = () => {
 document.getElementById("headerAction").onclick = () => openEventForm();
 document.getElementById("cancelForm").onclick = closeEventForm;
 document.getElementById("newCompanyBtn").onclick = () => openCompanyForm();
-document.getElementById("newServiceBtn").onclick = () => {
-  document.getElementById("serviceForm").name.value = "";
-  document.getElementById("serviceOverlay").classList.remove("hidden");
-};
-document.getElementById("cancelService").onclick = () => document.getElementById("serviceOverlay").classList.add("hidden");
+document.getElementById("newServiceBtn").onclick = () => openServiceForm();
+document.getElementById("cancelService").onclick = closeServiceForm;
+document.getElementById("deleteService").onclick = deleteSavedService;
 document.getElementById("companySelect").onchange = (event) => {
   state.selectedCompanyId = event.target.value || null;
 };
 document.getElementById("cancelCompany").onclick = () => document.getElementById("companyOverlay").classList.add("hidden");
 document.getElementById("printPdf").onclick = printReport;
 document.getElementById("sharePdf").onclick = () => shareReport().catch(() => printReport());
+document.getElementById("previewPdf").onclick = openReportPreview;
 document.getElementById("printInvoice").onclick = printCurrentInvoice;
 document.getElementById("sendInvoice").onclick = () => sendCurrentInvoice().catch(() => printCurrentInvoice());
 document.getElementById("closeInvoice").onclick = closeInvoice;
@@ -1356,6 +1503,7 @@ document.getElementById("eventForm").onsubmit = async (event) => {
     endDate,
     serviceIds: [...state.selectedServiceIds],
     projectName: names.join(", "),
+    activityName: form.activityName.value.trim(),
     amount: Number(form.amount.value) || 0,
     paymentStatus: state.paymentStatus,
     notes: form.notes.value.trim(),
@@ -1406,13 +1554,27 @@ document.getElementById("companyForm").onsubmit = (event) => {
 document.getElementById("serviceForm").onsubmit = (event) => {
   event.preventDefault();
   const name = event.currentTarget.name.value.trim();
+  const error = document.getElementById("serviceFormError");
   if (!name) return;
-  const created = rememberService(name);
-  if (!state.selectedServiceIds.includes(created.id)) {
-    state.selectedServiceIds.push(created.id);
+  const duplicate = state.services.find((item) =>
+    item.name.toLowerCase() === name.toLowerCase() && item.id !== state.editingServiceId
+  );
+  if (duplicate) {
+    error.textContent = "Ya hay un servicio con ese nombre.";
+    error.classList.remove("hidden");
+    return;
+  }
+  if (state.editingServiceId) {
+    const current = serviceById(state.editingServiceId);
+    if (current) current.name = name;
+  } else {
+    const created = rememberService(name);
+    if (!state.selectedServiceIds.includes(created.id)) {
+      state.selectedServiceIds.push(created.id);
+    }
   }
   persist();
-  document.getElementById("serviceOverlay").classList.add("hidden");
+  closeServiceForm();
   renderServiceChips();
 };
 

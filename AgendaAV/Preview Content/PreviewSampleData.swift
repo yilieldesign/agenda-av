@@ -30,6 +30,7 @@ enum PreviewSampleData {
                 amount: 8_500,
                 paymentStatus: .paid,
                 notes: "GrabandoRD — consola y radio.",
+                activityName: "Ensayo general",
                 company: company("GrabandoRD"),
                 serviceNames: ["Sonidista"]
             ),

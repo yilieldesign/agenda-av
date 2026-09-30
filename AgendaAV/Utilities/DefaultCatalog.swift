@@ -35,10 +35,8 @@ enum DefaultCatalog {
         }
 
         let existingServices = (try? context.fetch(FetchDescriptor<CatalogService>())) ?? []
-        for name in services {
-            if !existingServices.contains(where: {
-                $0.name.compare(name, options: .caseInsensitive) == .orderedSame
-            }) {
+        if existingServices.isEmpty {
+            for name in services {
                 context.insert(CatalogService(name: name))
             }
         }

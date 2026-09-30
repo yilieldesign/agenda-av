@@ -17,6 +17,15 @@ struct ContentView: View {
                     Label("Reportes", systemImage: "chart.bar.doc.horizontal")
                 }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Text(AVStyle.appCredit)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 6)
+                .padding(.bottom, 4)
+                .background(Color(.systemBackground))
+        }
         .task {
             await EventReminderScheduler.sync(events: events)
             try? modelContext.save()

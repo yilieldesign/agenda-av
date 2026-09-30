@@ -11,7 +11,7 @@ struct WorkEventRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(event.projectName)
+                    Text(event.displayTitle)
                         .font(.headline)
                         .foregroundStyle(.primary)
                         .lineLimit(2)
@@ -19,6 +19,14 @@ struct WorkEventRow: View {
                     Text(CurrencyFormat.string(from: event.billedAmount))
                         .font(.subheadline.weight(.semibold))
                         .monospacedDigit()
+                }
+
+                if !event.activityName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                   !event.projectName.isEmpty {
+                    Text(event.projectName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 HStack(spacing: 6) {

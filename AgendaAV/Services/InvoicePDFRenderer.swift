@@ -155,8 +155,7 @@ enum InvoicePDFRenderer {
                 .foregroundColor: UIColor.black
             ]
             dateLabel(for: event).draw(in: CGRect(x: margin + 6, y: y, width: 110, height: 16), withAttributes: attrs)
-            event.projectName.draw(in: CGRect(x: margin + 120, y: y, width: 210, height: 16), withAttributes: attrs)
-            event.paymentStatus.title.draw(in: CGRect(x: margin + 334, y: y, width: 70, height: 16), withAttributes: attrs)
+            event.reportLabel.draw(in: CGRect(x: margin + 120, y: y, width: 280, height: 16), withAttributes: attrs)
             let amount = CurrencyFormat.string(from: event.billedAmount(in: range))
             let amountWidth = (amount as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 10, weight: .semibold)]).width
             amount.draw(
@@ -203,6 +202,14 @@ enum InvoicePDFRenderer {
                 .foregroundColor: UIColor.gray
             ]
         )
+        y += 14
+        AVStyle.appCredit.draw(
+            at: CGPoint(x: margin, y: y),
+            withAttributes: [
+                .font: UIFont.systemFont(ofSize: 8),
+                .foregroundColor: UIColor.gray
+            ]
+        )
         return y + 16
     }
 
@@ -215,7 +222,6 @@ enum InvoicePDFRenderer {
         ]
         "Fecha".draw(at: CGPoint(x: margin + 6, y: y + 4), withAttributes: attrs)
         "Trabajo".draw(at: CGPoint(x: margin + 120, y: y + 4), withAttributes: attrs)
-        "Estado".draw(at: CGPoint(x: margin + 334, y: y + 4), withAttributes: attrs)
         "Monto".draw(at: CGPoint(x: margin + 430, y: y + 4), withAttributes: attrs)
         return y + 28
     }
@@ -249,11 +255,20 @@ enum InvoicePDFRenderer {
     }
 
     private static func drawFooter(page: Int) {
+        let creditFont = UIFont.systemFont(ofSize: 8, weight: .regular)
+        let creditWidth = (AVStyle.appCredit as NSString).size(withAttributes: [.font: creditFont]).width
+        AVStyle.appCredit.draw(
+            at: CGPoint(x: (pageRect.width - creditWidth) / 2, y: pageRect.height - 38),
+            withAttributes: [
+                .font: creditFont,
+                .foregroundColor: UIColor.gray
+            ]
+        )
         let text = "Reporte  ·  \(page)"
         let font = UIFont.systemFont(ofSize: 9, weight: .regular)
         let width = (text as NSString).size(withAttributes: [.font: font]).width
         text.draw(
-            at: CGPoint(x: (pageRect.width - width) / 2, y: pageRect.height - 28),
+            at: CGPoint(x: (pageRect.width - width) / 2, y: pageRect.height - 22),
             withAttributes: [
                 .font: font,
                 .foregroundColor: UIColor.gray
