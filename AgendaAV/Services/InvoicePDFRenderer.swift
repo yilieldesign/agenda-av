@@ -139,7 +139,7 @@ enum InvoicePDFRenderer {
         }
 
         for (index, event) in events.enumerated() {
-            if y + 22 > pageRect.height - 64 {
+            if y + 36 > pageRect.height - 64 {
                 drawFooter(page: page)
                 page += 1
                 context.beginPage()
@@ -148,15 +148,22 @@ enum InvoicePDFRenderer {
             }
             if index % 2 == 0 {
                 UIColor(white: 0.97, alpha: 1).setFill()
-                UIRectFill(CGRect(x: margin, y: y - 3, width: pageRect.width - margin * 2, height: 20))
+                UIRectFill(CGRect(x: margin, y: y - 3, width: pageRect.width - margin * 2, height: 30))
             }
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: 10, weight: .regular),
                 .foregroundColor: UIColor.black
             ]
-            dateLabel(for: event).draw(in: CGRect(x: margin + 6, y: y, width: 100, height: 16), withAttributes: attrs)
-            daysLabel(event.occupiedDayCount).draw(in: CGRect(x: margin + 108, y: y, width: 50, height: 16), withAttributes: attrs)
-            event.reportLabel.draw(in: CGRect(x: margin + 160, y: y, width: 240, height: 16), withAttributes: attrs)
+            dateLabel(for: event).draw(in: CGRect(x: margin + 6, y: y, width: 150, height: 16), withAttributes: attrs)
+            daysLabel(event.occupiedDayCount).draw(in: CGRect(x: margin + 6, y: y + 12, width: 150, height: 14), withAttributes: [
+                .font: UIFont.systemFont(ofSize: 9, weight: .semibold),
+                .foregroundColor: UIColor.black
+            ])
+            event.reportLabel.draw(in: CGRect(x: margin + 160, y: y, width: 220, height: 16), withAttributes: attrs)
+            daysLabel(event.occupiedDayCount).draw(in: CGRect(x: pageRect.width - margin - 150, y: y, width: 70, height: 16), withAttributes: [
+                .font: UIFont.systemFont(ofSize: 10, weight: .semibold),
+                .foregroundColor: UIColor.black
+            ])
             let amount = CurrencyFormat.string(from: event.billedAmount(in: range))
             let amountWidth = (amount as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 10, weight: .semibold)]).width
             amount.draw(
@@ -166,7 +173,7 @@ enum InvoicePDFRenderer {
                     .foregroundColor: UIColor.black
                 ]
             )
-            y += 20
+            y += 32
         }
 
         y += 10
@@ -206,14 +213,6 @@ enum InvoicePDFRenderer {
                 .foregroundColor: UIColor.gray
             ]
         )
-        y += 14
-        AVStyle.appCredit.draw(
-            at: CGPoint(x: margin, y: y),
-            withAttributes: [
-                .font: UIFont.systemFont(ofSize: 8),
-                .foregroundColor: UIColor.gray
-            ]
-        )
         return y + 16
     }
 
@@ -225,8 +224,8 @@ enum InvoicePDFRenderer {
             .foregroundColor: UIColor.white
         ]
         "Fecha".draw(at: CGPoint(x: margin + 6, y: y + 4), withAttributes: attrs)
-        "Días".draw(at: CGPoint(x: margin + 108, y: y + 4), withAttributes: attrs)
         "Trabajo".draw(at: CGPoint(x: margin + 160, y: y + 4), withAttributes: attrs)
+        "Días".draw(at: CGPoint(x: pageRect.width - margin - 150, y: y + 4), withAttributes: attrs)
         "Monto".draw(at: CGPoint(x: margin + 430, y: y + 4), withAttributes: attrs)
         return y + 28
     }

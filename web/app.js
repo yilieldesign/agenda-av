@@ -628,6 +628,10 @@ function formatJobDate(event) {
   return `${start} – ${end}`;
 }
 
+function formatJobDateWithDays(event) {
+  return `${formatJobDate(event)} (${daysLabel(eventDayCount(event))})`;
+}
+
 function loadProfile() {
   try {
     return Object.assign(
@@ -711,7 +715,7 @@ function companyRowsByStatus(summary, status) {
 function jobLinesHTML(events) {
   return events.map((event) => `
     <div class="job-line">
-      <span class="date">${escapeHtml(formatJobDate(event))} · ${daysLabel(eventDayCount(event))}</span>
+      <span class="date">${escapeHtml(formatJobDateWithDays(event))}</span>
       <span>${escapeHtml(eventReportLabel(event))}</span>
       <strong>${money(jobTotal(event))}</strong>
     </div>
@@ -800,7 +804,7 @@ function companyInvoice(companyId) {
 function invoiceHTML(inv) {
   const rows = inv.jobs.map((job) => `
     <tr>
-      <td>${escapeHtml(job.date)}</td>
+      <td>${escapeHtml(job.date)}<br><strong>${escapeHtml(job.daysLabel || daysLabel(job.days))}</strong></td>
       <td>${escapeHtml(job.daysLabel || daysLabel(job.days))}</td>
       <td>${escapeHtml(job.project)}</td>
       <td>${escapeHtml(job.amount)}</td>
@@ -821,7 +825,6 @@ function invoiceHTML(inv) {
     </table>
     ${inv.paymentNote ? `<p><strong>Pago:</strong> ${escapeHtml(inv.paymentNote)}</p>` : ""}
     <p class="muted">Documento para cobro de servicios audiovisuales.</p>
-    <p class="credit-line">${APP_CREDIT}</p>
   `;
 }
 
@@ -994,8 +997,10 @@ function reportHTML(summary) {
   const totalDays = summary.events.reduce((sum, event) => sum + eventDayCount(event), 0);
   const rows = summary.events.map((event) => {
     const company = companyById(event.companyId);
-    const fecha = event.startDate === event.endDate ? event.startDate : `${event.startDate} – ${event.endDate}`;
-    return `<tr><td>${fecha}</td><td>${daysLabel(eventDayCount(event))}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventReportLabel(event))}</td><td>${money(jobTotal(event))}</td></tr>`;
+    const fecha = event.startDate === event.endDate
+      ? event.startDate
+      : `${event.startDate} – ${event.endDate}`;
+    return `<tr><td>${fecha}<br><strong>${daysLabel(eventDayCount(event))}</strong></td><td>${daysLabel(eventDayCount(event))}</td><td>${escapeHtml(company?.name || "—")}</td><td>${escapeHtml(eventReportLabel(event))}</td><td>${money(jobTotal(event))}</td></tr>`;
   }).join("");
   const year = state.report.month.getFullYear();
   const months = state.report.kind === "yearly"
@@ -1023,7 +1028,6 @@ function reportHTML(summary) {
         <tr><th colspan="2">Total · ${daysLabel(totalDays)}</th><th colspan="3">${money(summary.total)}</th></tr>
       </tfoot>
     </table>
-    <p class="credit-line">${APP_CREDIT}</p>
   `;
 }
 
@@ -1038,8 +1042,14 @@ function printReport() {
 async function shareReport() {
   const summary = summarize();
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Reporte</title>
-    <style>body{font-family:Segoe UI,sans-serif;padding:24px} table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left} th{background:#122027;color:#fff}</style>
-    </head><body>${reportHTML(summary)}</body></html>`;
+    <style>
+      body{font-family:Segoe UI,sans-serif;padding:24px 24px 48px}
+      table{width:100%;border-collapse:collapse}
+      th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left}
+      th{background:#122027;color:#fff}
+      .pdf-footer{position:fixed;bottom:16px;left:0;right:0;text-align:center;font-size:10px;color:#5b6b73}
+    </style>
+    </head><body>${reportHTML(summary)}<p class="pdf-footer">${APP_CREDIT}</p></body></html>`;
   const blob = new Blob([html], { type: "text/html" });
   const file = new File([blob], `Reporte-${summary.start}.html`, { type: "text/html" });
   if (navigator.share && navigator.canShare?.({ files: [file] })) {

@@ -288,20 +288,27 @@ enum PDFReportRenderer {
 
         let columns = columnFrames()
         for (index, event) in summary.events.enumerated() {
-            ensureSpace(22, y: &y, context: context, page: &page)
+            ensureSpace(32, y: &y, context: context, page: &page)
             if index % 2 == 0 {
                 UIColor(white: 0.97, alpha: 1).setFill()
-                UIRectFill(CGRect(x: margin, y: y - 3, width: pageRect.width - margin * 2, height: 20))
+                UIRectFill(CGRect(x: margin, y: y - 3, width: pageRect.width - margin * 2, height: 30))
             }
 
             dateLabel(for: event).draw(in: CGRect(x: columns.date.minX, y: y, width: columns.date.width, height: 16), withAttributes: tableAttributes)
+            daysLabel(event.occupiedDayCount).draw(
+                in: CGRect(x: columns.date.minX, y: y + 12, width: columns.date.width, height: 14),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 9, weight: .semibold),
+                    .foregroundColor: UIColor.black
+                ]
+            )
             daysLabel(event.occupiedDayCount).draw(in: CGRect(x: columns.days.minX, y: y, width: columns.days.width, height: 16), withAttributes: tableAttributes)
             (event.company?.name ?? "—").draw(in: CGRect(x: columns.company.minX, y: y, width: columns.company.width, height: 16), withAttributes: tableAttributes)
             event.reportLabel.draw(in: CGRect(x: columns.project.minX, y: y, width: columns.project.width, height: 16), withAttributes: tableAttributes)
             let amount = CurrencyFormat.string(from: event.billedAmount(in: summary.period.closedRange))
             let amountBox = CGRect(x: columns.amount.minX, y: y, width: columns.amount.width, height: 16)
             amount.draw(in: amountBox, withAttributes: tableRightAttributes)
-            y += 20
+            y += 32
         }
 
         ensureSpace(28, y: &y, context: context, page: &page)

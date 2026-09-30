@@ -9,10 +9,13 @@ const InvoicePDF = {
     let y = 0;
 
     const flushPage = () => {
+      const credit = "Esta app fue creada por Eliezer Cruz";
+      const creditSize = 8;
+      const creditX = (pageW - String(credit).length * creditSize * 0.5) / 2;
       lines.push("BT");
-      lines.push("/F1 8 Tf");
-      lines.push(`${margin.toFixed(1)} 24 Td`);
-      lines.push(`${pdfString("Esta app fue creada por Eliezer Cruz")} Tj`);
+      lines.push(`/F1 ${creditSize} Tf`);
+      lines.push(`${creditX.toFixed(1)} 28 Td`);
+      lines.push(`${pdfString(credit)} Tj`);
       lines.push("ET");
       pages.push(lines.splice(0, lines.length).join("\n"));
     };
@@ -71,24 +74,26 @@ const InvoicePDF = {
     lines.push(`${margin} ${y - 6} ${pageW - margin * 2} 22 re f`);
     lines.push("1 1 1 rg");
     text(margin + 8, y, 10, true, "Fecha");
-    text(margin + 118, y, 10, true, "Dias");
-    text(margin + 168, y, 10, true, "Trabajo");
+    text(margin + 200, y, 10, true, "Trabajo");
+    text(pageW - margin - 128, y, 10, true, "Dias");
     text(pageW - margin - 52, y, 10, true, "Monto");
     lines.push("0 0 0 rg");
     y -= 26;
 
     invoice.jobs.forEach((job, index) => {
-      ensure(20);
+      ensure(30);
       if (index % 2 === 0) {
         lines.push("0.96 0.96 0.96 rg");
-        lines.push(`${margin} ${y - 4} ${pageW - margin * 2} 18 re f`);
+        lines.push(`${margin} ${y - 16} ${pageW - margin * 2} 28 re f`);
         lines.push("0 0 0 rg");
       }
-      text(margin + 8, y, 10, false, job.date);
-      text(margin + 118, y, 10, false, String(job.daysLabel || job.days || ""));
-      text(margin + 168, y, 10, false, clip(job.project, 36));
-      text(pageW - margin - 70, y, 10, true, job.amount);
-      y -= 18;
+      const daysText = String(job.daysLabel || (job.days ? `${job.days} dias` : ""));
+      text(margin + 8, y, 10, false, clip(job.date, 28));
+      text(margin + 8, y - 12, 9, true, daysText);
+      text(margin + 200, y - 4, 10, false, clip(job.project, 28));
+      text(pageW - margin - 140, y - 4, 10, true, daysText);
+      text(pageW - margin - 70, y - 4, 10, true, job.amount);
+      y -= 30;
     });
 
     y -= 8;
@@ -116,8 +121,6 @@ const InvoicePDF = {
     }
     ensure(36);
     text(margin, y, 9, false, "Documento generado para cobro de servicios audiovisuales.");
-    y -= 14;
-    text(margin, y, 8, false, "Esta app fue creada por Eliezer Cruz");
 
     flushPage();
 

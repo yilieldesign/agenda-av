@@ -563,7 +563,8 @@ select {
 .invoice-preview th, .invoice-preview td { padding: 6px 4px; text-align: left; border-bottom: 1px solid #e5ece9; }
 .invoice-preview td:last-child, .invoice-preview th:last-child { text-align: right; }
 .invoice-preview tfoot th { border-top: 2px solid var(--ink); border-bottom: 0; padding-top: 10px; }
-.invoice-preview .credit-line {
+.invoice-preview .credit-line,
+.pdf-footer-credit {
   margin-top: 12px;
   text-align: center;
   font-size: 11px;
@@ -616,9 +617,17 @@ select {
     padding-top: 10px;
   }
   .print-root .credit-line {
-    margin-top: 24px;
+    display: none;
+  }
+  .print-root::after {
+    content: "Esta app fue creada por Eliezer Cruz";
+    display: block;
+    position: fixed;
+    bottom: 16px;
+    left: 0;
+    right: 0;
     text-align: center;
     color: #5b6b73;
-    font-size: 11px;
+    font-size: 10px;
   }
 }
