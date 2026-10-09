@@ -1350,18 +1350,8 @@ function renderBudget() {
     <div class="metric"><span>Gastos fijos</span><strong>${money(snap.expenseTotal)}</strong></div>
     <div class="metric"><span>Pagado</span><strong>${money(snap.expensePaid)}</strong></div>
     <div class="metric"><span>Falta por pagar</span><strong>${money(snap.expensePending)}</strong></div>
-  `;
-  document.getElementById("budgetSummary").innerHTML = `
-    <h3>Presupuesto del mes</h3>
-    <p class="muted">Los ingresos salen de tus trabajos de este mes. Los gastos fijos se repiten cada mes hasta que los borres.</p>
-    <div class="breakdown-row"><span>A cobrar (trabajos)</span><strong>${money(snap.incomeTotal)}</strong></div>
-    <div class="breakdown-row"><span>Ya cobrado</span><strong>${money(snap.incomePaid)}</strong></div>
-    <div class="breakdown-row"><span>Por cobrar</span><strong>${money(snap.incomePending)}</strong></div>
-    <div class="breakdown-row"><span>Gastos fijos</span><strong>${money(snap.expenseTotal)}</strong></div>
-    <div class="breakdown-row"><span>Gastos pagados</span><strong>${money(snap.expensePaid)}</strong></div>
-    <div class="breakdown-row"><span>Gastos pendientes</span><strong>${money(snap.expensePending)}</strong></div>
-    <div class="total-line"><span>Balance previsto</span><span class="budget-balance ${balanceClass}">${money(snap.plannedBalance)}</span></div>
-    <div class="pending-line"><span>Queda (cobrado − pagado)</span><span>${money(snap.cashBalance)}</span></div>
+    <div class="metric"><span>Balance</span><strong class="${balanceClass}">${money(snap.plannedBalance)}</strong></div>
+    <div class="metric"><span>Queda (cobrado − pagado)</span><strong>${money(snap.cashBalance)}</strong></div>
   `;
   document.getElementById("budgetPending").innerHTML = `
     <h3>Falta por pagar</h3>
@@ -1781,7 +1771,7 @@ function startReminderWatch() {
 
 function registerReminderWorker() {
   if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./sw.js?v=gastos-fijos").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=presupuesto-simple").catch(() => {});
 }
 
 function openEventForm(eventId) {

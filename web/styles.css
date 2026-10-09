@@ -228,6 +228,8 @@ h1 { margin: 2px 0 0; font-size: 28px; }
 }
 .metric span { display: block; color: var(--muted); font-size: 12px; }
 .metric strong { font-size: 18px; }
+.metric strong.positive { color: #15803d; }
+.metric strong.negative { color: #b91c1c; }
 
 .segmented {
   display: flex;

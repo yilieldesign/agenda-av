@@ -54,7 +54,6 @@ struct BudgetView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     monthCard
                     metricsGrid
-                    summaryCard
                     pendingCard
                     if !paid.isEmpty {
                         paidCard
@@ -117,64 +116,23 @@ struct BudgetView: View {
             metricTile("Gastos fijos", expenseTotal)
             metricTile("Pagado", expensePaid)
             metricTile("Falta por pagar", expensePending)
+            metricTile("Balance", plannedBalance, color: plannedBalance >= 0 ? .green : .red)
+            metricTile("Queda (cobrado − pagado)", cashBalance)
         }
     }
 
-    private func metricTile(_ title: String, _ value: Decimal) -> some View {
+    private func metricTile(_ title: String, _ value: Decimal, color: Color? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(CurrencyFormat.string(from: value))
                 .font(.headline)
+                .foregroundStyle(color ?? .primary)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Presupuesto del mes")
-                .font(.headline)
-            Text("Los ingresos salen de tus trabajos de este mes. Los gastos fijos se repiten cada mes hasta que los borres.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            row("A cobrar (trabajos)", jobSummary.totalAmount)
-            row("Ya cobrado", jobSummary.payment.paidAmount)
-            row("Por cobrar", jobSummary.payment.pendingAmount)
-            row("Gastos fijos", expenseTotal)
-            row("Gastos pagados", expensePaid)
-            row("Gastos pendientes", expensePending)
-            HStack {
-                Text("Balance previsto")
-                Spacer()
-                Text(CurrencyFormat.string(from: plannedBalance))
-                    .foregroundStyle(plannedBalance >= 0 ? Color.green : Color.red)
-            }
-            .font(.headline)
-            .padding(.top, 4)
-            HStack {
-                Text("Queda (cobrado − pagado)")
-                Spacer()
-                Text(CurrencyFormat.string(from: cashBalance))
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.orange)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background, in: RoundedRectangle(cornerRadius: AVStyle.cardCorner, style: .continuous))
-    }
-
-    private func row(_ title: String, _ amount: Decimal) -> some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text(CurrencyFormat.string(from: amount))
-                .fontWeight(.semibold)
-        }
-        .font(.subheadline)
     }
 
     private var pendingCard: some View {
