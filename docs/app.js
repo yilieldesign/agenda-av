@@ -40,6 +40,7 @@ const state = {
   editingServiceId: null,
   savedAmounts: [],
   activeInvoiceId: null,
+  activeInvoicePayday: null,
   previewMode: "company",
   reminderKinds: new Set(),
   reminderTime: "08:00",
@@ -314,7 +315,7 @@ function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) {
     const data = JSON.parse(raw);
-    state.companies = data.companies || [];
+    state.companies = (data.companies || []).map(normalizeCompany).filter(Boolean);
     state.events = data.events || [];
     state.services = data.services || [];
     state.expenses = (data.expenses || []).map(normalizeExpense).filter(Boolean);
@@ -358,6 +359,7 @@ function normalizeExpense(item) {
   const dueDay = Math.min(31, Math.max(1, Number(item.dueDay) || 1));
   return {
     id: item.id || uid(),
+    entity: String(item.entity || "").trim(),
     name: String(item.name || "").trim() || "Gasto",
     amount: parseAmount(item.amount),
     dueDay,
@@ -392,10 +394,71 @@ function expenseDueDate(expense, monthDate = state.budgetMonth) {
 
 function sortedExpenses() {
   return [...state.expenses].sort((a, b) => {
+    const aId = expenseIdentity(a);
+    const bId = expenseIdentity(b);
+    const entity = aId.entity.localeCompare(bId.entity, localeTag());
+    if (entity) return entity;
     const day = (a.dueDay || 1) - (b.dueDay || 1);
     if (day) return day;
-    return a.name.localeCompare(b.name, localeTag());
+    return aId.label.localeCompare(bId.label, localeTag());
   });
+}
+
+function expenseNameParts(name) {
+  const text = String(name || "").trim();
+  const match = text.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+  if (match) {
+    const entity = match[1].trim();
+    const label = match[2].trim();
+    if (entity && label) return { entity, label };
+  }
+  return { entity: text, label: text };
+}
+
+function expenseIdentity(expense) {
+  const parsed = expenseNameParts(expense?.name);
+  const entity = String(expense?.entity || "").trim() || parsed.entity;
+  const hasEntity = Boolean(String(expense?.entity || "").trim());
+  const label = hasEntity ? (String(expense?.name || "").trim() || parsed.label) : parsed.label;
+  return {
+    entity: entity || "Gasto",
+    label: label || entity || "Gasto",
+  };
+}
+
+function expenseDisplayName(expense, grouped = false) {
+  const parts = expenseIdentity(expense);
+  if (grouped && parts.label !== parts.entity) return parts.label;
+  if (parts.entity && parts.label !== parts.entity) return `${parts.entity} - ${parts.label}`;
+  return expense?.name || parts.label;
+}
+
+function expenseFormValues(expense) {
+  if (!expense) return { entity: "", name: "" };
+  if (String(expense.entity || "").trim()) {
+    return { entity: expense.entity.trim(), name: expense.name || "" };
+  }
+  const parsed = expenseNameParts(expense.name);
+  if (parsed.label !== parsed.entity) {
+    return { entity: parsed.entity, name: parsed.label };
+  }
+  return { entity: "", name: expense.name || "" };
+}
+
+function groupExpensesByEntity(expenses) {
+  const groups = [];
+  const index = new Map();
+  for (const expense of expenses) {
+    const parts = expenseIdentity(expense);
+    const key = parts.entity.toLocaleLowerCase(localeTag());
+    if (!index.has(key)) {
+      index.set(key, groups.length);
+      groups.push({ key, entity: parts.entity, items: [] });
+    }
+    groups[index.get(key)].items.push(expense);
+  }
+  groups.sort((a, b) => a.entity.localeCompare(b.entity, localeTag()));
+  return groups;
 }
 
 function budgetJobSummary(monthDate = state.budgetMonth) {
@@ -427,7 +490,7 @@ function budgetSnapshot(monthDate = state.budgetMonth) {
 }
 
 function seed() {
-  state.companies = REAL_COMPANIES.map((c) => ({ ...c }));
+  state.companies = REAL_COMPANIES.map((c) => normalizeCompany(c));
   state.services = REAL_SERVICES.map((s) => ({ ...s }));
   state.events = [];
   state.expenses = [];
@@ -442,8 +505,9 @@ function ensureCatalog() {
     if (existing) {
       existing.name = wanted.name;
       existing.color = wanted.color;
+      existing.payCycle = companyPayCycle(existing);
     } else {
-      state.companies.push({ ...wanted });
+      state.companies.push(normalizeCompany(wanted));
     }
   });
   if (!state.services.length) {
@@ -473,6 +537,50 @@ function sortCatalog() {
     const order = catalogIndex(REAL_SERVICES, a.name) - catalogIndex(REAL_SERVICES, b.name);
     return order !== 0 ? order : a.name.localeCompare(b.name, "es");
   });
+}
+
+function normalizeCompany(item) {
+  if (!item || typeof item !== "object") return null;
+  return {
+    id: item.id || uid(),
+    name: String(item.name || "").trim() || "Empresa",
+    color: item.color || PALETTE[0],
+    payCycle: item.payCycle === "30" ? "30" : "15-30",
+  };
+}
+
+function companyPayCycle(company) {
+  return company?.payCycle === "30" ? "30" : "15-30";
+}
+
+function jobPayday(event) {
+  if (companyPayCycle(companyById(event?.companyId)) === "30") return 30;
+  const day = Number(String(event?.startDate || "").slice(8, 10));
+  return day <= 15 ? 15 : 30;
+}
+
+function paydayModeForReport() {
+  if (state.report.kind !== "biweekly") return null;
+  if (state.report.biweekly === "rolling15") return null;
+  return state.report.biweekly;
+}
+
+function eventBillingWindow(event, start, end, paydayMode) {
+  const cycle = companyPayCycle(companyById(event.companyId));
+  if (paydayMode === "firstHalf") {
+    if (cycle === "30" || jobPayday(event) !== 15) return null;
+    return jobOverlapsRange(event, start, end) ? { start, end } : null;
+  }
+  if (paydayMode === "secondHalf") {
+    if (jobPayday(event) !== 30) return null;
+    if (cycle === "30") {
+      const monthStart = toISODate(startOfMonth(parseISO(start)));
+      const monthEnd = toISODate(endOfMonth(parseISO(start)));
+      return jobOverlapsRange(event, monthStart, monthEnd) ? { start: monthStart, end: monthEnd } : null;
+    }
+    return jobOverlapsRange(event, start, end) ? { start, end } : null;
+  }
+  return jobOverlapsRange(event, start, end) ? { start, end } : null;
 }
 
 function companyById(id) {
@@ -663,12 +771,24 @@ function reportRange() {
   return { start: a, end: b };
 }
 
-function summarizeRange(start, end) {
-  const events = billableEvents()
-    .filter((e) => jobOverlapsRange(e, start, end))
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+function summarizeRange(start, end, paydayMode = null) {
+  const matched = billableEvents()
+    .map((event) => {
+      const window = eventBillingWindow(event, start, end, paydayMode);
+      return window ? { event, window } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.event.startDate.localeCompare(b.event.startDate));
+  const events = matched.map((item) => item.event);
+  const windows = new Map(matched.map((item) => [item.event.id, item.window]));
+  const amountOf = (event) => {
+    const window = windows.get(event.id) || { start, end };
+    return amountInRange(event, window.start, window.end);
+  };
   const byCompany = {};
-  for (const event of events) {
+  for (const item of matched) {
+    const event = item.event;
+    const window = item.window;
     const key = event.companyId || "none";
     const company = companyById(event.companyId);
     if (!byCompany[key]) {
@@ -683,10 +803,10 @@ function summarizeRange(start, end) {
         events: [],
       };
     }
-    const from = event.startDate > start ? event.startDate : start;
-    const to = event.endDate < end ? event.endDate : end;
+    const from = event.startDate > window.start ? event.startDate : window.start;
+    const to = event.endDate < window.end ? event.endDate : window.end;
     daysBetween(from, to).forEach((d) => byCompany[key].days.add(d));
-    const earned = amountInRange(event, start, end);
+    const earned = amountOf(event);
     byCompany[key].jobs += 1;
     byCompany[key].amount += earned;
     if (event.paymentStatus === "pending") {
@@ -696,7 +816,7 @@ function summarizeRange(start, end) {
   }
   const paid = events.filter((e) => e.paymentStatus === "paid");
   const pending = events.filter((e) => e.paymentStatus === "pending");
-  const total = events.reduce((sum, e) => sum + amountInRange(e, start, end), 0);
+  const total = events.reduce((sum, e) => sum + amountOf(e), 0);
   return {
     start,
     end,
@@ -709,14 +829,14 @@ function summarizeRange(start, end) {
         events: [...c.events].sort((a, b) => a.startDate.localeCompare(b.startDate)),
       }))
       .sort((a, b) => b.amount - a.amount),
-    paid: { count: paid.length, amount: paid.reduce((s, e) => s + amountInRange(e, start, end), 0) },
-    pending: { count: pending.length, amount: pending.reduce((s, e) => s + amountInRange(e, start, end), 0) },
+    paid: { count: paid.length, amount: paid.reduce((s, e) => s + amountOf(e), 0) },
+    pending: { count: pending.length, amount: pending.reduce((s, e) => s + amountOf(e), 0) },
   };
 }
 
 function summarize() {
   const { start, end } = reportRange();
-  return summarizeRange(start, end);
+  return summarizeRange(start, end, paydayModeForReport());
 }
 
 function monthlyEarnings(year) {
@@ -1017,19 +1137,34 @@ function eventsAmount(events) {
   return events.reduce((sum, event) => sum + jobTotal(event), 0);
 }
 
-function companyRowsByStatus(summary, status) {
+function companyRowsByStatus(summary, status, payday) {
   return summary.companies
     .map((company) => {
-      const events = company.events.filter((event) => event.paymentStatus === status);
+      const events = company.events.filter((event) => {
+        if (event.paymentStatus !== status) return false;
+        if (payday) return jobPayday(event) === payday;
+        return true;
+      });
       return {
         ...company,
         events,
         jobs: events.length,
         amount: eventsAmount(events),
         pendingAmount: status === "pending" ? eventsAmount(events) : 0,
+        payday: payday || null,
       };
     })
     .filter((company) => company.events.length);
+}
+
+function pendingPaydayGroups(summary) {
+  return [15, 30]
+    .map((day) => ({
+      day,
+      title: `Pendiente a cobrar el ${day}`,
+      companies: companyRowsByStatus(summary, "pending", day),
+    }))
+    .filter((group) => group.companies.length);
 }
 
 function jobLinesHTML(events) {
@@ -1044,6 +1179,10 @@ function jobLinesHTML(events) {
 
 function companyCardHTML(company, mode) {
   const pending = mode === "pending";
+  const paydayAttr = company.payday ? ` data-payday="${company.payday}"` : "";
+  const pendingLabel = company.payday
+    ? `Pendiente a cobrar el ${company.payday}`
+    : "Pendiente de pago";
   return `
     <article class="company-block-card">
       <div class="breakdown-row">
@@ -1057,13 +1196,13 @@ function companyCardHTML(company, mode) {
       ${jobLinesHTML(company.events)}
       <div class="total-line"><span>Total</span><span>${money(company.amount)}</span></div>
       ${pending ? `
-        <div class="pending-line"><span>Pendiente de pago</span><span>${money(company.pendingAmount)}</span></div>
-        <button type="button" class="secondary preview-btn" data-preview-company="${company.id}">Vista previa</button>
+        <div class="pending-line"><span>${pendingLabel}</span><span>${money(company.pendingAmount)}</span></div>
+        <button type="button" class="secondary preview-btn" data-preview-company="${company.id}"${paydayAttr}>Vista previa</button>
         <div class="row-actions invoice-actions">
-          <button type="button" class="secondary" data-print-company="${company.id}">Imprimir</button>
-          <button type="button" class="primary" data-invoice="${company.id}">Reporte PDF</button>
+          <button type="button" class="secondary" data-print-company="${company.id}"${paydayAttr}>Imprimir</button>
+          <button type="button" class="primary" data-invoice="${company.id}"${paydayAttr}>Reporte PDF</button>
         </div>
-        <button type="button" class="pay-company-btn" data-pay-company="${company.id}">Pago por empresa</button>
+        <button type="button" class="pay-company-btn" data-pay-company="${company.id}"${paydayAttr}>Pago por empresa</button>
       ` : `
         <div class="paid-line"><span>Pagado · historial</span><span>${money(company.amount)}</span></div>
       `}
@@ -1071,15 +1210,27 @@ function companyCardHTML(company, mode) {
   `;
 }
 
-function markCompanyPaid(companyId) {
+function companyPendingEvents(companyId, payday) {
+  const summary = summarize();
+  const company = summary.companies.find((item) => item.id === companyId);
+  if (!company) return [];
+  return company.events.filter((event) => {
+    if (event.paymentStatus !== "pending") return false;
+    if (payday) return jobPayday(event) === Number(payday);
+    return true;
+  });
+}
+
+function markCompanyPaid(companyId, payday) {
   const summary = summarize();
   const company = summary.companies.find((item) => item.id === companyId);
   if (!company) return;
-  const pending = company.events.filter((event) => event.paymentStatus === "pending");
+  const pending = companyPendingEvents(companyId, payday);
   if (!pending.length) return;
+  const when = payday ? ` a cobrar el ${payday}` : "";
   const label = pending.length === 1 ? "1 trabajo pendiente" : `${pending.length} trabajos pendientes`;
   const ok = window.confirm(
-    `¿Marcar como pagados los ${label} de ${company.name}?\n\nSalen de Pendiente y quedan en el historial.`
+    `¿Marcar como pagados los ${label} de ${company.name}${when}?\n\nSalen de Pendiente y quedan en el historial.`
   );
   if (!ok) return;
   const ids = new Set(pending.map((event) => event.id));
@@ -1090,11 +1241,11 @@ function markCompanyPaid(companyId) {
   render();
 }
 
-function companyInvoice(companyId) {
+function companyInvoice(companyId, payday = state.activeInvoicePayday) {
   const summary = summarize();
   const company = summary.companies.find((c) => c.id === companyId);
   if (!company) return null;
-  const jobs = company.events.filter((event) => event.paymentStatus === "pending");
+  const jobs = companyPendingEvents(companyId, payday);
   if (!jobs.length) return null;
   const profile = loadProfile();
   const totalDays = jobs.reduce((sum, event) => sum + eventDayCount(event), 0);
@@ -1148,8 +1299,9 @@ function invoiceHTML(inv) {
   `;
 }
 
-function openInvoice(companyId) {
-  const inv = companyInvoice(companyId);
+function openInvoice(companyId, payday) {
+  state.activeInvoicePayday = payday || null;
+  const inv = companyInvoice(companyId, payday);
   if (!inv) return;
   state.previewMode = "company";
   state.activeInvoiceId = companyId;
@@ -1167,6 +1319,7 @@ function openReportPreview() {
 function closeInvoice() {
   document.getElementById("invoiceOverlay").classList.add("hidden");
   state.activeInvoiceId = null;
+  state.activeInvoicePayday = null;
   state.previewMode = "company";
 }
 
@@ -1208,9 +1361,10 @@ async function sendCurrentInvoice() {
   URL.revokeObjectURL(url);
 }
 
-async function shareCompanyInvoice(companyId) {
+async function shareCompanyInvoice(companyId, payday) {
   state.previewMode = "company";
   state.activeInvoiceId = companyId;
+  state.activeInvoicePayday = payday || null;
   await sendCurrentInvoice();
 }
 
@@ -1281,15 +1435,15 @@ function renderReports() {
     monthsBox.innerHTML = "";
   }
 
-  const pendingCompanies = companyRowsByStatus(summary, "pending");
+  const pendingGroups = pendingPaydayGroups(summary);
   const paidCompanies = companyRowsByStatus(summary, "paid");
-  document.getElementById("companyBreakdown").innerHTML = `
-    <h3>Pendiente por empresa</h3>
-    <p class="muted">Aquí solo salen los cobros que faltan. Cuando te paguen, usa Pago por empresa: salen de esta lista y quedan en el historial.</p>
-    ${pendingCompanies.length
-      ? pendingCompanies.map((company) => companyCardHTML(company, "pending")).join("")
-      : `<p class="muted">No hay cobros pendientes en este período.</p>`}
-  `;
+  const pendingIntro = `<p class="muted">Aquí solo salen los cobros que faltan. Las empresas que pagan solo el 30 no salen del 1 al 15; aparecen del 16 al fin de mes. Cuando te paguen, usa Pago por empresa.</p>`;
+  document.getElementById("companyBreakdown").innerHTML = pendingGroups.length
+    ? pendingIntro + pendingGroups.map((group) => `
+        <h3>${escapeHtml(group.title)}</h3>
+        ${group.companies.map((company) => companyCardHTML(company, "pending")).join("")}
+      `).join("")
+    : `<h3>Pendiente por empresa</h3>${pendingIntro}<p class="muted">No hay cobros pendientes en este período.</p>`;
   const historyBox = document.getElementById("historyBreakdown");
   historyBox.classList.toggle("hidden", !paidCompanies.length);
   historyBox.innerHTML = paidCompanies.length ? `
@@ -1320,14 +1474,15 @@ function renderReports() {
   renderGoogleCard();
 }
 
-function expenseCardHTML(expense, paid) {
+function expenseCardHTML(expense, paid, grouped = false) {
   const due = expenseDueDate(expense);
   const dueText = formatDate(due, { day: "numeric", month: "short" });
+  const title = expenseDisplayName(expense, grouped);
   return `
     <article class="expense-card" data-edit-expense="${expense.id}">
       <div class="breakdown-row">
         <div>
-          <strong>${escapeHtml(expense.name)}</strong>
+          <strong>${escapeHtml(title)}</strong>
           <div class="muted">Día ${expense.dueDay} · ${escapeHtml(dueText)}</div>
           ${expense.notes ? `<div class="muted">${escapeHtml(expense.notes)}</div>` : ""}
         </div>
@@ -1339,6 +1494,25 @@ function expenseCardHTML(expense, paid) {
         : `<button type="button" class="expense-pay-btn" data-pay-expense="${expense.id}">Marcar pagado</button>`}
     </article>
   `;
+}
+
+function expenseGroupsHTML(expenses, paid) {
+  const groups = groupExpensesByEntity(expenses);
+  return groups.map((group) => {
+    const grouped = group.items.length > 1;
+    const total = group.items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const cards = group.items.map((item) => expenseCardHTML(item, paid, grouped)).join("");
+    if (!grouped) return cards;
+    return `
+      <section class="expense-group">
+        <div class="expense-group-head">
+          <strong>${escapeHtml(group.entity)}</strong>
+          <span>${money(total)}</span>
+        </div>
+        ${cards}
+      </section>
+    `;
+  }).join("");
 }
 
 function renderBudget() {
@@ -1358,7 +1532,7 @@ function renderBudget() {
     <h3>Falta por pagar</h3>
     <p class="muted">Gastos de ${monthLabel} que todavía no marcas como pagados.</p>
     ${snap.pending.length
-      ? snap.pending.map((item) => expenseCardHTML(item, false)).join("")
+      ? expenseGroupsHTML(snap.pending, false)
       : `<p class="muted">${snap.expenses.length ? "Este mes no te falta ningún gasto fijo." : "Todavía no hay gastos fijos. Toca + o Agregar gasto fijo."}</p>`}
   `;
   const paidBox = document.getElementById("budgetPaid");
@@ -1366,7 +1540,7 @@ function renderBudget() {
   paidBox.innerHTML = snap.paid.length ? `
     <h3>Ya pagado</h3>
     <p class="muted">Estos gastos ya los marcaste como pagados este mes.</p>
-    ${snap.paid.map((item) => expenseCardHTML(item, true)).join("")}
+    ${expenseGroupsHTML(snap.paid, true)}
   ` : "";
 }
 
@@ -1383,7 +1557,9 @@ function openExpenseForm(expenseId) {
   const form = document.getElementById("expenseForm");
   const expense = state.expenses.find((item) => item.id === expenseId);
   state.editingExpenseId = expenseId || null;
-  form.name.value = expense?.name || "";
+  const fields = expenseFormValues(expense);
+  form.entity.value = fields.entity;
+  form.name.value = fields.name;
   form.amount.value = expense ? formatAmountInput(expense.amount) : "";
   form.notes.value = expense?.notes || "";
   fillExpenseDueDay(expense?.dueDay || 1);
@@ -1401,7 +1577,7 @@ function closeExpenseForm() {
 function deleteSavedExpense() {
   const expense = state.expenses.find((item) => item.id === state.editingExpenseId);
   if (!expense) return;
-  if (!confirm(`¿Eliminar "${expense.name}" de los gastos fijos?\n\nDeja de salir en todos los meses.`)) return;
+  if (!confirm(`¿Eliminar "${expenseDisplayName(expense)}" de los gastos fijos?\n\nDeja de salir en todos los meses.`)) return;
   const id = expense.id;
   state.expenses = state.expenses.filter((item) => item.id !== id);
   Object.keys(state.expensePaid).forEach((key) => {
@@ -1414,13 +1590,22 @@ function deleteSavedExpense() {
 
 function budgetHTML(snap) {
   const monthLabel = formatDate(state.budgetMonth, { month: "long", year: "numeric" });
-  const row = (item, paid) => `
+  const row = (item, paid, grouped = false) => `
     <tr>
-      <td>${escapeHtml(item.name)}</td>
+      <td>${escapeHtml(expenseDisplayName(item, grouped))}</td>
       <td>Día ${item.dueDay}</td>
       <td>${paid ? "Pagado" : "Pendiente"}</td>
       <td>${money(item.amount)}</td>
     </tr>`;
+  const groupedRows = (list, paid) => {
+    const rows = groupExpensesByEntity(list).flatMap((group) => {
+      const grouped = group.items.length > 1;
+      const body = group.items.map((item) => row(item, paid, grouped));
+      if (!grouped) return body;
+      return [`<tr><th colspan="4">${escapeHtml(group.entity)}</th></tr>`, ...body];
+    });
+    return rows.join("") || `<tr><td colspan="4">${paid ? "Nada pagado este mes" : "Nada pendiente"}</td></tr>`;
+  };
   return `
     <h1>Presupuesto</h1>
     <p>${escapeHtml(monthLabel)}</p>
@@ -1431,12 +1616,12 @@ function budgetHTML(snap) {
     <h3>Falta por pagar</h3>
     <table>
       <thead><tr><th>Gasto</th><th>Día</th><th>Estado</th><th>Monto</th></tr></thead>
-      <tbody>${snap.pending.map((item) => row(item, false)).join("") || `<tr><td colspan="4">Nada pendiente</td></tr>`}</tbody>
+      <tbody>${groupedRows(snap.pending, false)}</tbody>
     </table>
     <h3>Ya pagado</h3>
     <table>
       <thead><tr><th>Gasto</th><th>Día</th><th>Estado</th><th>Monto</th></tr></thead>
-      <tbody>${snap.paid.map((item) => row(item, true)).join("") || `<tr><td colspan="4">Nada pagado este mes</td></tr>`}</tbody>
+      <tbody>${groupedRows(snap.paid, true)}</tbody>
     </table>
   `;
 }
@@ -1772,7 +1957,7 @@ function startReminderWatch() {
 
 function registerReminderWorker() {
   if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./sw.js?v=scroll-y").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=cobro-30").catch(() => {});
 }
 
 function openEventForm(eventId) {
@@ -1848,6 +2033,7 @@ function openCompanyForm(id) {
   const form = document.getElementById("companyForm");
   form.name.value = company?.name || "";
   form.color.value = company?.color || PALETTE[state.companies.length % PALETTE.length];
+  form.payCycle.value = companyPayCycle(company);
   document.getElementById("companyFormTitle").textContent = company ? "Editar empresa" : "Nueva empresa";
   document.getElementById("companyOverlay").classList.remove("hidden");
 }
@@ -1888,13 +2074,14 @@ function render() {
 document.addEventListener("click", (event) => {
   const previewCompany = event.target.closest("[data-preview-company]");
   if (previewCompany) {
-    openInvoice(previewCompany.dataset.previewCompany);
+    openInvoice(previewCompany.dataset.previewCompany, previewCompany.dataset.payday);
     return;
   }
   const invoiceBtn = event.target.closest("[data-invoice]");
   if (invoiceBtn) {
-    shareCompanyInvoice(invoiceBtn.dataset.invoice).catch(() => {
+    shareCompanyInvoice(invoiceBtn.dataset.invoice, invoiceBtn.dataset.payday).catch(() => {
       state.activeInvoiceId = invoiceBtn.dataset.invoice;
+      state.activeInvoicePayday = invoiceBtn.dataset.payday || null;
       printCurrentInvoice();
     });
     return;
@@ -1903,12 +2090,13 @@ document.addEventListener("click", (event) => {
   if (printCompany) {
     state.previewMode = "company";
     state.activeInvoiceId = printCompany.dataset.printCompany;
+    state.activeInvoicePayday = printCompany.dataset.payday || null;
     printCurrentInvoice();
     return;
   }
   const payCompany = event.target.closest("[data-pay-company]");
   if (payCompany) {
-    markCompanyPaid(payCompany.dataset.payCompany);
+    markCompanyPaid(payCompany.dataset.payCompany, payCompany.dataset.payday);
     return;
   }
   const day = event.target.closest("[data-day]");
@@ -2009,7 +2197,7 @@ document.getElementById("expenseForm").onsubmit = (event) => {
   const name = form.name.value.trim();
   const amount = parseAmount(form.amount.value);
   if (!name) {
-    error.textContent = "Escribe el nombre del gasto.";
+    error.textContent = "Escribe el título del gasto.";
     error.classList.remove("hidden");
     return;
   }
@@ -2020,6 +2208,7 @@ document.getElementById("expenseForm").onsubmit = (event) => {
   }
   const payload = {
     id: state.editingExpenseId || uid(),
+    entity: form.entity.value.trim(),
     name,
     amount,
     dueDay: Number(form.dueDay.value) || 1,
@@ -2035,6 +2224,9 @@ document.getElementById("expenseForm").onsubmit = (event) => {
   renderBudget();
 };
 document.getElementById("cancelForm").onclick = closeEventForm;
+document.getElementById("editCompanyBtn").onclick = () => {
+  if (state.selectedCompanyId) openCompanyForm(state.selectedCompanyId);
+};
 document.getElementById("newCompanyBtn").onclick = () => openCompanyForm();
 document.getElementById("editServiceBtn").onclick = () => {
   const id = state.selectedServiceIds[0];
@@ -2260,11 +2452,12 @@ document.getElementById("companyForm").onsubmit = (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const name = form.name.value.trim();
+  const payCycle = form.payCycle.value === "30" ? "30" : "15-30";
   if (!name) return;
   if (state.editingCompanyId) {
-    state.companies = state.companies.map((c) => c.id === state.editingCompanyId ? { ...c, name, color: form.color.value } : c);
+    state.companies = state.companies.map((c) => c.id === state.editingCompanyId ? { ...c, name, color: form.color.value, payCycle } : c);
   } else {
-    const created = { id: uid(), name, color: form.color.value };
+    const created = { id: uid(), name, color: form.color.value, payCycle };
     state.companies.push(created);
     state.selectedCompanyId = created.id;
   }

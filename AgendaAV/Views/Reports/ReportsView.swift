@@ -12,7 +12,7 @@ struct ReportsView: View {
     @State private var period = ReportPeriod()
     @State private var pdfDocument: ReportPDFFile?
     @State private var previewDocument: ReportPDFFile?
-    @State private var companyToPay: CompanyBreakdown?
+    @State private var companyToPay: CompanyPayTarget?
     @State private var showingResetConfirm = false
     @AppStorage("invoiceIssuerName") private var invoiceName = ""
     @AppStorage("invoiceIssuerPhone") private var invoicePhone = ""
@@ -68,13 +68,13 @@ struct ReportsView: View {
             ) {
                 Button("Cancelar", role: .cancel) { companyToPay = nil }
                 Button("Marcar pagado") {
-                    if let row = companyToPay {
-                        markCompanyPaid(row)
+                    if let target = companyToPay {
+                        markCompanyPaid(target)
                     }
                     companyToPay = nil
                 }
             } message: {
-                Text("Los trabajos pendientes de \(companyToPay?.name ?? "esta empresa") salen de Pendiente y quedan en el historial.")
+                Text("Los trabajos pendientes de \(companyToPay?.row.name ?? "esta empresa") a cobrar el \(companyToPay?.payday ?? 30) salen de Pendiente y quedan en el historial.")
             }
             .alert("¿Reiniciar a primer uso?", isPresented: $showingResetConfirm) {
                 Button("Cancelar", role: .cancel) {}
@@ -252,8 +252,24 @@ struct ReportsView: View {
         .background(.background, in: RoundedRectangle(cornerRadius: AVStyle.cardCorner, style: .continuous))
     }
 
-    private var pendingCompanyRows: [CompanyBreakdown] {
-        summary.byCompany.filter { !companyEvents($0, status: .pending).isEmpty }
+    private struct CompanyPayTarget: Identifiable {
+        var id: String { "\(row.companyID)-\(payday)" }
+        let row: CompanyBreakdown
+        let payday: Int
+    }
+
+    private struct PaydayPendingGroup: Identifiable {
+        let id: Int
+        var title: String { "Pendiente a cobrar el \(id)" }
+        let rows: [CompanyBreakdown]
+    }
+
+    private var pendingPaydayGroups: [PaydayPendingGroup] {
+        [15, 30].compactMap { day in
+            let rows = summary.byCompany.filter { !companyEvents($0, status: .pending, payday: day).isEmpty }
+            guard !rows.isEmpty else { return nil }
+            return PaydayPendingGroup(id: day, rows: rows)
+        }
     }
 
     private var paidCompanyRows: [CompanyBreakdown] {
@@ -262,18 +278,22 @@ struct ReportsView: View {
 
     private var companyBreakdown: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Pendiente por empresa")
-                .font(.headline)
-            Text("Aquí solo salen los cobros que faltan. Cuando te paguen, usa Pago por empresa: salen de esta lista y quedan en el historial.")
+            Text("Aquí solo salen los cobros que faltan. Las empresas que pagan solo el 30 no salen del 1 al 15; aparecen del 16 al fin de mes. Cuando te paguen, usa Pago por empresa.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            if pendingCompanyRows.isEmpty {
+            if pendingPaydayGroups.isEmpty {
+                Text("Pendiente por empresa")
+                    .font(.headline)
                 Text("No hay cobros pendientes en este período.")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(pendingCompanyRows) { row in
-                    companyInvoiceBlock(row, mode: .pending)
+                ForEach(pendingPaydayGroups) { group in
+                    Text(group.title)
+                        .font(.headline)
+                    ForEach(group.rows) { row in
+                        companyInvoiceBlock(row, mode: .pending, payday: group.id)
+                    }
                 }
             }
         }
@@ -308,9 +328,9 @@ struct ReportsView: View {
         case history
     }
 
-    private func companyInvoiceBlock(_ row: CompanyBreakdown, mode: CompanyBlockMode) -> some View {
-        let jobs = companyEvents(row, status: mode == .pending ? .pending : .paid)
-        let total = jobs.reduce(Decimal.zero) { $0 + $1.billedAmount(in: period.closedRange) }
+    private func companyInvoiceBlock(_ row: CompanyBreakdown, mode: CompanyBlockMode, payday: Int? = nil) -> some View {
+        let jobs = companyEvents(row, status: mode == .pending ? .pending : .paid, payday: payday)
+        let total = jobs.reduce(Decimal.zero) { $0 + billed(for: $1) }
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Circle()
@@ -341,7 +361,7 @@ struct ReportsView: View {
                     Text(event.reportLabel)
                         .font(.caption)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(CurrencyFormat.string(from: event.billedAmount(in: period.closedRange)))
+                    Text(CurrencyFormat.string(from: billed(for: event)))
                         .font(.caption.weight(.semibold))
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
@@ -357,7 +377,7 @@ struct ReportsView: View {
 
             if mode == .pending {
                 HStack {
-                    Text("Pendiente de pago")
+                    Text(payday.map { "Pendiente a cobrar el \($0)" } ?? "Pendiente de pago")
                     Spacer()
                     Text(CurrencyFormat.string(from: total))
                 }
@@ -365,7 +385,7 @@ struct ReportsView: View {
                 .foregroundStyle(.orange)
 
                 Button {
-                    previewInvoice(for: row)
+                    previewInvoice(for: row, payday: payday)
                 } label: {
                     Label("Vista previa", systemImage: "eye")
                         .frame(maxWidth: .infinity)
@@ -375,7 +395,7 @@ struct ReportsView: View {
 
                 HStack(spacing: 8) {
                     Button {
-                        printInvoice(for: row)
+                        printInvoice(for: row, payday: payday)
                     } label: {
                         Label("Imprimir", systemImage: "printer")
                             .frame(maxWidth: .infinity)
@@ -383,7 +403,7 @@ struct ReportsView: View {
                     .buttonStyle(.bordered)
 
                     Button {
-                        shareInvoice(for: row)
+                        shareInvoice(for: row, payday: payday)
                     } label: {
                         Label("Reporte PDF", systemImage: "square.and.arrow.up")
                             .frame(maxWidth: .infinity)
@@ -392,7 +412,9 @@ struct ReportsView: View {
                 }
 
                 Button {
-                    companyToPay = row
+                    if let payday {
+                        companyToPay = CompanyPayTarget(row: row, payday: payday)
+                    }
                 } label: {
                     Text("Pago por empresa")
                         .frame(maxWidth: .infinity)
@@ -564,15 +586,20 @@ struct ReportsView: View {
         presentPrint(data, jobName: "Reporte")
     }
 
-    private func companyEvents(_ row: CompanyBreakdown, status: PaymentStatus? = nil) -> [WorkEvent] {
+    private func billed(for event: WorkEvent) -> Decimal {
+        period.billingRange(for: event).map { event.billedAmount(in: $0) } ?? 0
+    }
+
+    private func companyEvents(_ row: CompanyBreakdown, status: PaymentStatus? = nil, payday: Int? = nil) -> [WorkEvent] {
         summary.events
             .filter { ($0.company?.uuid.uuidString ?? "sin-empresa") == row.companyID }
             .filter { status == nil || $0.paymentStatus == status }
+            .filter { payday == nil || PayCycle.payday(for: $0) == payday }
             .sorted { $0.startDate < $1.startDate }
     }
 
-    private func markCompanyPaid(_ row: CompanyBreakdown) {
-        for event in companyEvents(row, status: .pending) {
+    private func markCompanyPaid(_ target: CompanyPayTarget) {
+        for event in companyEvents(target.row, status: .pending, payday: target.payday) {
             event.paymentStatus = .paid
         }
         try? modelContext.save()
@@ -602,12 +629,14 @@ struct ReportsView: View {
         return start
     }
 
-    private func invoiceData(for row: CompanyBreakdown) -> Data {
-        InvoicePDFRenderer.makePDF(
+    private func invoiceData(for row: CompanyBreakdown, payday: Int?) -> Data {
+        let events = companyEvents(row, status: .pending, payday: payday)
+        let range = events.first.flatMap { period.billingRange(for: $0) } ?? period.closedRange
+        return InvoicePDFRenderer.makePDF(
             companyName: row.name,
             periodTitle: summary.periodTitle,
-            events: companyEvents(row, status: .pending),
-            range: period.closedRange,
+            events: events,
+            range: range,
             issuer: InvoiceIssuer(
                 name: invoiceName,
                 phone: invoicePhone,
@@ -616,24 +645,24 @@ struct ReportsView: View {
         )
     }
 
-    private func shareInvoice(for row: CompanyBreakdown) {
+    private func shareInvoice(for row: CompanyBreakdown, payday: Int?) {
         guard let url = writePDF(
-            invoiceData(for: row),
+            invoiceData(for: row, payday: payday),
             fileName: InvoicePDFRenderer.suggestedFileName(companyName: row.name)
         ) else { return }
         pdfDocument = ReportPDFFile(url: url)
     }
 
-    private func previewInvoice(for row: CompanyBreakdown) {
+    private func previewInvoice(for row: CompanyBreakdown, payday: Int?) {
         guard let url = writePDF(
-            invoiceData(for: row),
+            invoiceData(for: row, payday: payday),
             fileName: InvoicePDFRenderer.suggestedFileName(companyName: row.name)
         ) else { return }
         previewDocument = ReportPDFFile(url: url)
     }
 
-    private func printInvoice(for row: CompanyBreakdown) {
-        presentPrint(invoiceData(for: row), jobName: "Reporte \(row.name)")
+    private func printInvoice(for row: CompanyBreakdown, payday: Int?) {
+        presentPrint(invoiceData(for: row, payday: payday), jobName: "Reporte \(row.name)")
     }
 
     private func presentPrint(_ data: Data, jobName: String) {

@@ -7,6 +7,7 @@ struct ExpenseEditorSheet: View {
 
     let expense: FixedExpense?
 
+    @State private var entity: String
     @State private var name: String
     @State private var amount: Decimal
     @State private var dueDay: Int
@@ -16,7 +17,9 @@ struct ExpenseEditorSheet: View {
 
     init(expense: FixedExpense? = nil) {
         self.expense = expense
-        _name = State(initialValue: expense?.name ?? "")
+        let values = FixedExpense.formValues(from: expense)
+        _entity = State(initialValue: values.entity)
+        _name = State(initialValue: values.name)
         _amount = State(initialValue: expense?.amount ?? 0)
         _dueDay = State(initialValue: expense?.dueDay ?? 1)
         _notes = State(initialValue: expense?.notes ?? "")
@@ -26,7 +29,8 @@ struct ExpenseEditorSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Nombre", text: $name)
+                    TextField("Entidad", text: $entity)
+                    TextField("Título", text: $name)
                     HStack {
                         Text("RD$")
                             .fontWeight(.bold)
@@ -39,7 +43,7 @@ struct ExpenseEditorSheet: View {
                             Text("\(day)").tag(day)
                         }
                     }
-                    Text("Sale todos los meses. En Presupuesto marcas si este mes ya lo pagaste.")
+                    Text("La entidad sirve para agrupar (Claro, Edesur…). El título es qué estás pagando (mi renta, renta mami).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -86,9 +90,10 @@ struct ExpenseEditorSheet: View {
     }
 
     private func save() {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            validationMessage = "Escribe el nombre del gasto."
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEntity = entity.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            validationMessage = "Escribe el título del gasto."
             return
         }
         guard amount > 0 else {
@@ -96,13 +101,15 @@ struct ExpenseEditorSheet: View {
             return
         }
         if let expense {
-            expense.name = trimmed
+            expense.entity = trimmedEntity
+            expense.name = trimmedName
             expense.amount = amount
             expense.dueDay = dueDay
             expense.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         } else {
             modelContext.insert(FixedExpense(
-                name: trimmed,
+                entity: trimmedEntity,
+                name: trimmedName,
                 amount: amount,
                 dueDay: dueDay,
                 notes: notes.trimmingCharacters(in: .whitespacesAndNewlines)

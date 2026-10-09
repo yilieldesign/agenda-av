@@ -542,6 +542,9 @@ select {
   flex: 0 0 auto;
   white-space: nowrap;
 }
+#companyBreakdown h3:not(:first-child) {
+  margin-top: 22px;
+}
 .company-block-card {
   border: 1px solid #e5ece9;
   border-radius: 14px;
@@ -643,6 +646,29 @@ select {
   cursor: pointer;
   background: #ffedd5;
   color: #c2410c;
+}
+.expense-group {
+  margin: 12px 0 0;
+  padding: 10px;
+  border: 1px solid #e5ece9;
+  border-radius: 16px;
+  background: #f7faf9;
+  min-width: 0;
+}
+.expense-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 4px 6px;
+  min-width: 0;
+}
+.expense-group-head strong {
+  overflow-wrap: anywhere;
+}
+.expense-group .expense-card {
+  margin-top: 8px;
+  background: white;
 }
 .expense-card {
   border: 1px solid #e5ece9;

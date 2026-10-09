@@ -42,22 +42,25 @@ struct ReportSummary {
 
 enum ReportCalculator {
     static func summarize(events: [WorkEvent], period: ReportPeriod, calendar: Calendar = .current) -> ReportSummary {
-        let range = period.closedRange
-        let overlapping = events
-            .filter { overlaps($0, range: range, calendar: calendar) }
-            .sorted { $0.startDate < $1.startDate }
+        let included = events
+            .compactMap { event -> (WorkEvent, ClosedRange<Date>)? in
+                guard let window = period.billingRange(for: event, calendar: calendar) else { return nil }
+                return (event, window)
+            }
+            .sorted { $0.0.startDate < $1.0.startDate }
+        let overlapping = included.map(\.0)
 
         var companyBuckets: [String: (name: String, hex: String, days: Set<Date>, jobs: Int, amount: Decimal)] = [:]
 
-        for event in overlapping {
+        for (event, window) in included {
             let key = event.company?.uuid.uuidString ?? "sin-empresa"
             let name = event.company?.name ?? "Sin empresa"
             let hex = event.company?.colorHex ?? "#6B7280"
-            let days = overlappingDays(of: event, range: range, calendar: calendar)
+            let days = overlappingDays(of: event, range: window, calendar: calendar)
             var bucket = companyBuckets[key] ?? (name, hex, [], 0, 0)
             bucket.days.formUnion(days)
             bucket.jobs += 1
-            bucket.amount += event.billedAmount(in: range, calendar: calendar)
+            bucket.amount += event.billedAmount(in: window, calendar: calendar)
             companyBuckets[key] = bucket
         }
 
@@ -92,13 +95,17 @@ enum ReportCalculator {
             period: period,
             events: overlapping,
             jobCount: overlapping.count,
-            totalAmount: overlapping.reduce(0) { $0 + $1.billedAmount(in: range, calendar: calendar) },
+            totalAmount: included.reduce(0) { $0 + $1.0.billedAmount(in: $1.1, calendar: calendar) },
             byCompany: byCompany,
             payment: PaymentBreakdown(
                 paidCount: paidEvents.count,
                 pendingCount: pendingEvents.count,
-                paidAmount: paidEvents.reduce(0) { $0 + $1.billedAmount(in: range, calendar: calendar) },
-                pendingAmount: pendingEvents.reduce(0) { $0 + $1.billedAmount(in: range, calendar: calendar) }
+                paidAmount: paidEvents.reduce(0) { sum, event in
+                    sum + (period.billingRange(for: event, calendar: calendar).map { event.billedAmount(in: $0, calendar: calendar) } ?? 0)
+                },
+                pendingAmount: pendingEvents.reduce(0) { sum, event in
+                    sum + (period.billingRange(for: event, calendar: calendar).map { event.billedAmount(in: $0, calendar: calendar) } ?? 0)
+                }
             ),
             monthlyRows: monthlyRows
         )
@@ -137,12 +144,6 @@ enum ReportCalculator {
                 pending: pending.reduce(0) { $0 + $1.billedAmount }
             )
         }
-    }
-
-    private static func overlaps(_ event: WorkEvent, range: ClosedRange<Date>, calendar: Calendar) -> Bool {
-        let eventStart = calendar.startOfDay(for: event.startDate)
-        let eventEnd = calendar.startOfDay(for: event.endDate)
-        return eventStart <= range.upperBound && eventEnd >= range.lowerBound
     }
 
     private static func overlappingDays(

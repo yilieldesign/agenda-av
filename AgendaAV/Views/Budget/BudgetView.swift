@@ -148,9 +148,7 @@ struct BudgetView: View {
                      : "Este mes no te falta ningún gasto fijo.")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(pending, id: \.uuid) { expense in
-                    expenseBlock(expense, paid: false)
-                }
+                expenseGroups(pending, paid: false)
             }
             Button {
                 showingNewExpense = true
@@ -173,23 +171,76 @@ struct BudgetView: View {
             Text("Estos gastos ya los marcaste como pagados este mes.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            ForEach(paid, id: \.uuid) { expense in
-                expenseBlock(expense, paid: true)
-            }
+            expenseGroups(paid, paid: true)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background, in: RoundedRectangle(cornerRadius: AVStyle.cardCorner, style: .continuous))
     }
 
-    private func expenseBlock(_ expense: FixedExpense, paid: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private struct ExpenseGroup: Identifiable {
+        let id: String
+        let title: String
+        let items: [FixedExpense]
+    }
+
+    private func grouped(_ list: [FixedExpense]) -> [ExpenseGroup] {
+        var order: [String] = []
+        var buckets: [String: [FixedExpense]] = [:]
+        var titles: [String: String] = [:]
+        for expense in list {
+            let entity = expense.groupingEntity
+            let key = entity.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "es"))
+            if buckets[key] == nil {
+                order.append(key)
+                titles[key] = entity
+            }
+            buckets[key, default: []].append(expense)
+        }
+        return order
+            .map { ExpenseGroup(id: $0, title: titles[$0] ?? $0, items: buckets[$0] ?? []) }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    @ViewBuilder
+    private func expenseGroups(_ list: [FixedExpense], paid: Bool) -> some View {
+        ForEach(grouped(list)) { group in
+            let groupedItems = group.items.count > 1
+            VStack(alignment: .leading, spacing: 8) {
+                if groupedItems {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(group.title)
+                            .font(.subheadline.weight(.bold))
+                        Spacer()
+                        Text(CurrencyFormat.string(from: group.items.reduce(0) { $0 + $1.amount }))
+                            .font(.subheadline.weight(.semibold))
+                    }
+                }
+                ForEach(group.items, id: \.uuid) { expense in
+                    expenseBlock(expense, paid: paid, grouped: groupedItems)
+                }
+            }
+            .padding(groupedItems ? 10 : 0)
+            .background {
+                if groupedItems {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(.tertiarySystemFill))
+                }
+            }
+        }
+    }
+
+    private func expenseBlock(_ expense: FixedExpense, paid: Bool, grouped: Bool = false) -> some View {
+        let title = grouped && expense.groupingLabel != expense.groupingEntity
+            ? expense.groupingLabel
+            : expense.displayName
+        return VStack(alignment: .leading, spacing: 8) {
             Button {
                 editingExpense = expense
             } label: {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(expense.name)
+                        Text(title)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
                         Text("Día \(expense.dueDay)")

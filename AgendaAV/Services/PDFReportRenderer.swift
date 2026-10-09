@@ -305,7 +305,8 @@ enum PDFReportRenderer {
             daysLabel(event.occupiedDayCount).draw(in: CGRect(x: columns.days.minX, y: y, width: columns.days.width, height: 16), withAttributes: tableAttributes)
             (event.company?.name ?? "—").draw(in: CGRect(x: columns.company.minX, y: y, width: columns.company.width, height: 16), withAttributes: tableAttributes)
             event.reportLabel.draw(in: CGRect(x: columns.project.minX, y: y, width: columns.project.width, height: 16), withAttributes: tableAttributes)
-            let amount = CurrencyFormat.string(from: event.billedAmount(in: summary.period.closedRange))
+            let amountRange = summary.period.billingRange(for: event) ?? summary.period.closedRange
+            let amount = CurrencyFormat.string(from: event.billedAmount(in: amountRange))
             let amountBox = CGRect(x: columns.amount.minX, y: y, width: columns.amount.width, height: 16)
             amount.draw(in: amountBox, withAttributes: tableRightAttributes)
             y += 32

@@ -20,6 +20,7 @@ struct AddEditEventView: View {
     @State private var activityName: String
     @State private var selectedCompanyId: UUID?
     @State private var showingCompanyEditor = false
+    @State private var companyBeingEdited: Company?
     @State private var showingServiceEditor = false
     @State private var editingService: CatalogService?
     @State private var showingDeleteConfirm = false
@@ -128,7 +129,15 @@ struct AddEditEventView: View {
                             Text(company.name).tag(Optional(company.uuid))
                         }
                     }
+                    Button("Editar empresa") {
+                        companyBeingEdited = selectedCompany
+                        if selectedCompany != nil {
+                            showingCompanyEditor = true
+                        }
+                    }
+                    .disabled(selectedCompanyId == nil)
                     Button("Nueva empresa", systemImage: "plus") {
+                        companyBeingEdited = nil
                         showingCompanyEditor = true
                     }
                 }
@@ -262,9 +271,9 @@ struct AddEditEventView: View {
             } message: {
                 Text("Esta acción no se puede deshacer.")
             }
-            .sheet(isPresented: $showingCompanyEditor) {
+            .sheet(isPresented: $showingCompanyEditor, onDismiss: { companyBeingEdited = nil }) {
                 CompanyEditorSheet(
-                    company: nil,
+                    company: companyBeingEdited,
                     usedHexes: companies.map(\.colorHex)
                 ) { created in
                     selectedCompanyId = created.uuid

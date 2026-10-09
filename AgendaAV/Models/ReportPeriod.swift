@@ -85,4 +85,37 @@ struct ReportPeriod: Equatable {
         let endText = range.upperBound.formatted(.dateTime.day().month(.wide).year())
         return "\(startText) – \(endText)"
     }
+
+    var paydayMode: BiweeklyMode? {
+        guard kind == .biweekly, biweeklyMode != .rolling15 else { return nil }
+        return biweeklyMode
+    }
+
+    func billingRange(for event: WorkEvent, calendar: Calendar = .current) -> ClosedRange<Date>? {
+        let cycle = event.company?.payCycle ?? .fifteenthAndMonthEnd
+        let payday = PayCycle.payday(for: event, calendar: calendar)
+        let range = closedRange
+        func overlaps(_ window: ClosedRange<Date>) -> Bool {
+            let start = calendar.startOfDay(for: event.startDate)
+            let end = calendar.startOfDay(for: event.endDate)
+            return start <= window.upperBound && end >= window.lowerBound
+        }
+
+        switch paydayMode {
+        case .firstHalf:
+            if cycle == .monthEnd || payday != 15 { return nil }
+            return overlaps(range) ? range : nil
+        case .secondHalf:
+            if payday != 30 { return nil }
+            if cycle == .monthEnd {
+                let monthStart = calendar.startOfMonth(for: monthAnchor)
+                let monthEnd = calendar.startOfDay(for: calendar.endOfMonth(for: monthAnchor))
+                let monthRange = monthStart ... monthEnd
+                return overlaps(monthRange) ? monthRange : nil
+            }
+            return overlaps(range) ? range : nil
+        default:
+            return overlaps(range) ? range : nil
+        }
+    }
 }

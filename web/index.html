@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="manifest" href="manifest.webmanifest?v=scroll-y" />
-  <link rel="stylesheet" href="styles.css?v=scroll-y" />
+  <link rel="manifest" href="manifest.webmanifest?v=cobro-30" />
+  <link rel="stylesheet" href="styles.css?v=cobro-30" />
 </head>
 <body>
   <div class="phone">
@@ -161,6 +161,7 @@
             <option value="">Selecciona una empresa</option>
           </select>
         </label>
+        <button type="button" class="text-btn" id="editCompanyBtn">Editar</button>
         <button type="button" class="text-btn" id="newCompanyBtn">+ Nueva</button>
       </div>
       <div class="dropdown-field">
@@ -226,6 +227,13 @@
       <label>Color en el calendario
         <input type="color" name="color" value="#0F766E" />
       </label>
+      <label>Cuándo te pagan
+        <select name="payCycle">
+          <option value="15-30">El 15 y el 30</option>
+          <option value="30">Solo el 30</option>
+        </select>
+      </label>
+      <p class="muted">Si paga solo el 30, esos trabajos no salen en la quincena del 1 al 15; aparecen del 16 al fin de mes.</p>
       <div class="row-actions">
         <button type="button" class="secondary" id="cancelCompany">Cancelar</button>
         <button type="submit" class="primary">Guardar</button>
@@ -250,9 +258,12 @@
     <form class="sheet" id="expenseForm">
       <div class="sheet-handle"></div>
       <h2 id="expenseFormTitle">Nuevo gasto fijo</h2>
-      <p class="muted">Queda para todos los meses. En Presupuesto marcas si este mes ya lo pagaste.</p>
-      <label>Nombre
-        <input type="text" name="name" required maxlength="80" placeholder="Ej. Alquiler, internet, teléfono" />
+      <p class="muted">Queda para todos los meses. La entidad sirve para agrupar (Claro, Edesur…). El título es qué estás pagando (mi renta, renta mami).</p>
+      <label>Entidad
+        <input type="text" name="entity" maxlength="80" placeholder="Ej. Claro" />
+      </label>
+      <label>Título
+        <input type="text" name="name" required maxlength="80" placeholder="Ej. mi renta" />
       </label>
       <label>Monto del mes
         <div class="money-field">
@@ -305,10 +316,10 @@
 
   <div id="reminderToast" class="reminder-toast hidden" role="status"></div>
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="ics.js?v=scroll-y"></script>
-  <script src="google.js?v=scroll-y"></script>
-  <script src="pdf.js?v=scroll-y"></script>
-  <script src="reminders.js?v=scroll-y"></script>
-  <script src="app.js?v=scroll-y"></script>
+  <script src="ics.js?v=cobro-30"></script>
+  <script src="google.js?v=cobro-30"></script>
+  <script src="pdf.js?v=cobro-30"></script>
+  <script src="reminders.js?v=cobro-30"></script>
+  <script src="app.js?v=cobro-30"></script>
 </body>
 </html>
