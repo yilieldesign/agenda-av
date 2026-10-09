@@ -101,23 +101,22 @@ struct AddEditEventView: View {
                 }
 
                 Section("Servicios") {
-                    Text("Puedes marcar varios. El monto es por día y se multiplica si eliges más de un día.")
+                    Text("El monto es por día y se multiplica si eliges más de un día.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    ForEach(services) { service in
-                        HStack {
-                            Toggle(service.name, isOn: serviceToggle(service.uuid))
-                            Button {
-                                editingService = service
-                                showingServiceEditor = true
-                            } label: {
-                                Image(systemName: "pencil.circle")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Editar \(service.name)")
+                    Picker("Servicio", selection: servicePicker) {
+                        Text("Selecciona un servicio").tag(Optional<UUID>.none)
+                        ForEach(services) { service in
+                            Text(service.name).tag(Optional(service.uuid))
                         }
                     }
+                    Button("Editar servicio", systemImage: "pencil") {
+                        if let service = services.first(where: { selectedServiceIds.contains($0.uuid) }) {
+                            editingService = service
+                            showingServiceEditor = true
+                        }
+                    }
+                    .disabled(selectedServiceIds.isEmpty)
                     Button("Nuevo servicio", systemImage: "plus") {
                         editingService = nil
                         showingServiceEditor = true
@@ -273,7 +272,7 @@ struct AddEditEventView: View {
                 ServiceEditorSheet(
                     service: editingService,
                     onCreated: { created in
-                        selectedServiceIds.insert(created.uuid)
+                        selectedServiceIds = [created.uuid]
                     },
                     onDeleted: { id in
                         selectedServiceIds.remove(id)
@@ -380,14 +379,14 @@ struct AddEditEventView: View {
         return result
     }
 
-    private func serviceToggle(_ id: UUID) -> Binding<Bool> {
+    private var servicePicker: Binding<UUID?> {
         Binding(
-            get: { selectedServiceIds.contains(id) },
-            set: { isOn in
-                if isOn {
-                    selectedServiceIds.insert(id)
+            get: { services.first(where: { selectedServiceIds.contains($0.uuid) })?.uuid },
+            set: { newValue in
+                if let newValue {
+                    selectedServiceIds = [newValue]
                 } else {
-                    selectedServiceIds.remove(id)
+                    selectedServiceIds = []
                 }
             }
         )
@@ -417,7 +416,7 @@ struct AddEditEventView: View {
     private func save() async {
         let names = selectedServiceNames
         guard !names.isEmpty else {
-            validationMessage = "Selecciona uno o más servicios."
+            validationMessage = "Selecciona un servicio."
             return
         }
         guard let selectedCompany else {

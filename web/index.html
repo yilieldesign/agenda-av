@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="manifest" href="manifest.webmanifest?v=google-ios" />
-  <link rel="stylesheet" href="styles.css?v=google-ios" />
+  <link rel="manifest" href="manifest.webmanifest?v=gastos-fijos" />
+  <link rel="stylesheet" href="styles.css?v=gastos-fijos" />
 </head>
 <body>
   <div class="phone">
@@ -51,6 +51,27 @@
       </section>
 
       <section class="card" id="dayPanel"></section>
+    </main>
+
+    <main id="budgetScreen" class="screen hidden">
+      <section class="card">
+        <div class="month-nav">
+          <button type="button" id="prevBudgetMonth" aria-label="Mes anterior">‹</button>
+          <h2 id="budgetMonthLabel"></h2>
+          <button type="button" id="nextBudgetMonth" aria-label="Mes siguiente">›</button>
+        </div>
+        <p class="muted">Agrega tus gastos fijos una vez (alquiler, internet, teléfono). Salen todos los meses. Aquí marcas lo que ya pagaste y lo que falta.</p>
+      </section>
+      <section class="metrics" id="budgetMetrics"></section>
+      <section class="card" id="budgetSummary"></section>
+      <section class="card" id="budgetPending"></section>
+      <section class="card" id="budgetPaid"></section>
+      <section class="card">
+        <button type="button" class="primary" id="addExpenseFromBudget">Agregar gasto fijo</button>
+        <div class="row-actions invoice-actions">
+          <button type="button" class="secondary" id="printBudget">Imprimir presupuesto</button>
+        </div>
+      </section>
     </main>
 
     <main id="reportsScreen" class="screen hidden">
@@ -105,6 +126,9 @@
       <button type="button" class="tab" data-tab="reports">
         <span>📊</span> Reportes
       </button>
+      <button type="button" class="tab" data-tab="budget">
+        <span>📒</span> Presupuesto
+      </button>
     </nav>
     <p class="app-credit">Esta app fue creada por Eliezer Cruz</p>
   </div>
@@ -140,13 +164,14 @@
         </label>
         <button type="button" class="text-btn" id="newCompanyBtn">+ Nueva</button>
       </div>
-      <div class="service-picker">
-        <div class="row-between">
-          <strong>Servicios</strong>
-          <button type="button" class="text-btn" id="newServiceBtn">+ Nuevo</button>
-        </div>
-        <p class="muted">Toca el nombre para marcarlo. El lápiz sirve para cambiarlo o quitarlo de la lista.</p>
-        <div id="serviceChips"></div>
+      <div class="dropdown-field">
+        <label>Servicio
+          <select id="serviceSelect">
+            <option value="">Selecciona un servicio</option>
+          </select>
+        </label>
+        <button type="button" class="text-btn" id="editServiceBtn">Editar</button>
+        <button type="button" class="text-btn" id="newServiceBtn">+ Nuevo</button>
       </div>
       <label>Monto por día
         <div class="money-field" id="amountSelectWrap">
@@ -223,6 +248,35 @@
     </div>
   </div>
 
+  <div class="overlay hidden" id="expenseOverlay">
+    <form class="sheet" id="expenseForm">
+      <div class="sheet-handle"></div>
+      <h2 id="expenseFormTitle">Nuevo gasto fijo</h2>
+      <p class="muted">Queda para todos los meses. En Presupuesto marcas si este mes ya lo pagaste.</p>
+      <label>Nombre
+        <input type="text" name="name" required maxlength="80" placeholder="Ej. Alquiler, internet, teléfono" />
+      </label>
+      <label>Monto del mes
+        <div class="money-field">
+          <span class="money-prefix">RD$</span>
+          <input type="text" name="amount" inputmode="decimal" enterkeyhint="done" autocomplete="off" required placeholder="" />
+        </div>
+      </label>
+      <label>Día de pago
+        <select name="dueDay" id="expenseDueDay"></select>
+      </label>
+      <label>Notas
+        <textarea name="notes" rows="2" placeholder="Opcional"></textarea>
+      </label>
+      <p class="error hidden" id="expenseFormError"></p>
+      <div class="row-actions">
+        <button type="button" class="secondary" id="cancelExpense">Cancelar</button>
+        <button type="submit" class="primary">Guardar</button>
+      </div>
+      <button type="button" class="danger hidden" id="deleteExpense">Eliminar gasto</button>
+    </form>
+  </div>
+
   <div class="overlay hidden" id="serviceOverlay">
     <form class="sheet" id="serviceForm">
       <h2 id="serviceFormTitle">Nuevo servicio</h2>
@@ -253,10 +307,10 @@
 
   <div id="reminderToast" class="reminder-toast hidden" role="status"></div>
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="ics.js?v=google-ios"></script>
-  <script src="google.js?v=google-ios"></script>
-  <script src="pdf.js?v=google-ios"></script>
-  <script src="reminders.js?v=google-ios"></script>
-  <script src="app.js?v=google-ios"></script>
+  <script src="ics.js?v=gastos-fijos"></script>
+  <script src="google.js?v=gastos-fijos"></script>
+  <script src="pdf.js?v=gastos-fijos"></script>
+  <script src="reminders.js?v=gastos-fijos"></script>
+  <script src="app.js?v=gastos-fijos"></script>
 </body>
 </html>

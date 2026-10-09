@@ -162,7 +162,7 @@ h1 { margin: 2px 0 0; font-size: 28px; }
 
 .event {
   display: grid;
-  grid-template-columns: 6px 1fr auto;
+  grid-template-columns: 6px 1fr;
   gap: 10px;
   padding: 10px 0;
   border-bottom: 1px solid #eef2f1;
@@ -275,18 +275,19 @@ h1 { margin: 2px 0 0; font-size: 28px; }
   width: 100%;
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   background: white;
   border-top: 1px solid #e5ece9;
-  padding: 8px 8px 4px;
+  padding: 8px 4px 4px;
 }
 .tab {
   border: 0;
   background: transparent;
-  padding: 8px;
+  padding: 8px 4px;
   color: var(--muted);
   font-weight: 700;
   cursor: pointer;
+  font-size: 12px;
 }
 .tab.active { color: var(--accent); }
 .tab span { display: block; }
@@ -389,11 +390,16 @@ input, textarea, select {
   display: flex;
   align-items: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
 }
-.dropdown-field label { flex: 1; margin-bottom: 0; }
+.dropdown-field label { flex: 1; margin-bottom: 0; min-width: 160px; }
 .dropdown-field .text-btn {
   margin-bottom: 10px;
   white-space: nowrap;
+}
+.dropdown-field .text-btn:disabled {
+  opacity: 0.4;
+  pointer-events: none;
 }
 .chip {
   display: inline-flex;
@@ -500,28 +506,54 @@ select {
 .breakdown-row {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 8px;
   padding: 8px 0;
   border-bottom: 1px solid #eef2f1;
+  min-width: 0;
 }
 .breakdown-row:last-child { border-bottom: 0; }
+.breakdown-row > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.breakdown-row > strong {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 .company-block-card {
   border: 1px solid #e5ece9;
   border-radius: 14px;
   padding: 12px;
   margin: 10px 0 0;
+  min-width: 0;
+  overflow: hidden;
 }
 .job-line {
   display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 7px 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 8px 0;
   font-size: 13px;
   border-bottom: 1px dashed #eef2f1;
+  min-width: 0;
 }
-.job-line span:nth-child(2) { flex: 1; }
 .job-line:last-of-type { border-bottom: 0; }
-.job-line .date { color: var(--muted); min-width: 128px; }
+.job-line .date {
+  color: var(--muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.job-line .job-activity {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.job-line .job-amount {
+  align-self: flex-end;
+  white-space: nowrap;
+}
 .total-line {
   display: flex;
   justify-content: space-between;
@@ -569,6 +601,47 @@ select {
   background: #dcfce7;
   color: #15803d;
 }
+.expense-pay-btn {
+  width: 100%;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #dcfce7;
+  color: #15803d;
+}
+.expense-unpay-btn {
+  width: 100%;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #ffedd5;
+  color: #c2410c;
+}
+.expense-card {
+  border: 1px solid #e5ece9;
+  border-radius: 14px;
+  padding: 12px;
+  margin: 10px 0 0;
+  min-width: 0;
+  overflow: hidden;
+  width: 100%;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.budget-balance {
+  font-size: 22px;
+}
+.budget-balance.positive { color: #15803d; }
+.budget-balance.negative { color: #b91c1c; }
 .invoice-sheet { max-height: 94dvh; }
 .invoice-preview {
   font-size: 13px;

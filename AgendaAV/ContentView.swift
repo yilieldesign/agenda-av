@@ -16,6 +16,11 @@ struct ContentView: View {
                 .tabItem {
                     Label("Reportes", systemImage: "chart.bar.doc.horizontal")
                 }
+
+            BudgetView()
+                .tabItem {
+                    Label("Presupuesto", systemImage: "book.closed")
+                }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Text(AVStyle.appCredit)

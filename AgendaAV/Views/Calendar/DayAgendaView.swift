@@ -35,7 +35,7 @@ struct DayAgendaView: View {
                     Button {
                         onSelect(event)
                     } label: {
-                        WorkEventRow(event: event)
+                        WorkEventRow(event: event, showAmount: false)
                     }
                     .buttonStyle(.plain)
                 }

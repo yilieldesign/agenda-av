@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WorkEventRow: View {
     let event: WorkEvent
+    var showAmount: Bool = true
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -16,9 +17,11 @@ struct WorkEventRow: View {
                         .foregroundStyle(.primary)
                         .lineLimit(2)
                     Spacer()
-                    Text(CurrencyFormat.string(from: event.billedAmount))
-                        .font(.subheadline.weight(.semibold))
-                        .monospacedDigit()
+                    if showAmount {
+                        Text(CurrencyFormat.string(from: event.billedAmount))
+                            .font(.subheadline.weight(.semibold))
+                            .monospacedDigit()
+                    }
                 }
 
                 if !event.activityName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,

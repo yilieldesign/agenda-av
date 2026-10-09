@@ -329,22 +329,21 @@ struct ReportsView: View {
             }
 
             ForEach(jobs, id: \.uuid) { event in
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(invoiceDate(event))
-                        if !event.scheduleLabel.isEmpty {
-                            Text(event.scheduleLabel)
-                        }
-                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(invoiceDate(event))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .frame(width: 118, alignment: .leading)
+                    if !event.scheduleLabel.isEmpty {
+                        Text(event.scheduleLabel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     Text(event.reportLabel)
                         .font(.caption)
-                        .lineLimit(2)
-                    Spacer()
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(CurrencyFormat.string(from: event.billedAmount(in: period.closedRange)))
                         .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
 

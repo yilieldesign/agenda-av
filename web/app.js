@@ -28,6 +28,10 @@ const state = {
   companies: [],
   events: [],
   services: [],
+  expenses: [],
+  expensePaid: {},
+  budgetMonth: startOfMonth(new Date()),
+  editingExpenseId: null,
   editingId: null,
   paymentStatus: "pending",
   selectedCompanyId: null,
@@ -312,6 +316,8 @@ function load() {
     state.companies = data.companies || [];
     state.events = data.events || [];
     state.services = data.services || [];
+    state.expenses = (data.expenses || []).map(normalizeExpense).filter(Boolean);
+    state.expensePaid = data.expensePaid && typeof data.expensePaid === "object" ? data.expensePaid : {};
     state.savedAmounts = (data.savedAmounts || []).map(parseAmount).filter((n) => n > 0);
     if (data.lastAmount) rememberAmount(data.lastAmount);
   } else {
@@ -340,14 +346,91 @@ function persist() {
     companies: state.companies,
     events: state.events,
     services: state.services,
+    expenses: state.expenses,
+    expensePaid: state.expensePaid,
     savedAmounts: uniqueSavedAmounts(),
   }));
+}
+
+function normalizeExpense(item) {
+  if (!item || typeof item !== "object") return null;
+  const dueDay = Math.min(31, Math.max(1, Number(item.dueDay) || 1));
+  return {
+    id: item.id || uid(),
+    name: String(item.name || "").trim() || "Gasto",
+    amount: parseAmount(item.amount),
+    dueDay,
+    notes: String(item.notes || "").slice(0, 500),
+  };
+}
+
+function monthKey(date) {
+  const d = date instanceof Date ? date : parseISO(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function expensePaidKey(expenseId, monthDate) {
+  return `${monthKey(monthDate)}:${expenseId}`;
+}
+
+function isExpensePaid(expense, monthDate = state.budgetMonth) {
+  return Boolean(state.expensePaid[expensePaidKey(expense.id, monthDate)]);
+}
+
+function setExpensePaid(expenseId, monthDate, paid) {
+  const key = expensePaidKey(expenseId, monthDate);
+  if (paid) state.expensePaid[key] = true;
+  else delete state.expensePaid[key];
+}
+
+function expenseDueDate(expense, monthDate = state.budgetMonth) {
+  const last = endOfMonth(monthDate).getDate();
+  const day = Math.min(Math.max(Number(expense.dueDay) || 1, 1), last);
+  return new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
+}
+
+function sortedExpenses() {
+  return [...state.expenses].sort((a, b) => {
+    const day = (a.dueDay || 1) - (b.dueDay || 1);
+    if (day) return day;
+    return a.name.localeCompare(b.name, localeTag());
+  });
+}
+
+function budgetJobSummary(monthDate = state.budgetMonth) {
+  return summarizeRange(toISODate(startOfMonth(monthDate)), toISODate(endOfMonth(monthDate)));
+}
+
+function budgetSnapshot(monthDate = state.budgetMonth) {
+  const jobs = budgetJobSummary(monthDate);
+  const expenses = sortedExpenses();
+  const pending = expenses.filter((item) => !isExpensePaid(item, monthDate));
+  const paid = expenses.filter((item) => isExpensePaid(item, monthDate));
+  const expenseTotal = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const expensePaid = paid.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const expensePending = pending.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  return {
+    jobs,
+    expenses,
+    pending,
+    paid,
+    expenseTotal,
+    expensePaid,
+    expensePending,
+    incomeTotal: jobs.total,
+    incomePaid: jobs.paid.amount,
+    incomePending: jobs.pending.amount,
+    plannedBalance: jobs.total - expenseTotal,
+    cashBalance: jobs.paid.amount - expensePaid,
+  };
 }
 
 function seed() {
   state.companies = REAL_COMPANIES.map((c) => ({ ...c }));
   state.services = REAL_SERVICES.map((s) => ({ ...s }));
   state.events = [];
+  state.expenses = [];
+  state.expensePaid = {};
 }
 
 function ensureCatalog() {
@@ -543,7 +626,6 @@ function renderDayPanel() {
             : `<span class="badge ${event.paymentStatus}">${event.paymentStatus === "paid" ? "Pagado" : "Pendiente"}</span>`}
           ${event.reminders?.length ? `<span class="bell" title="Con recordatorio">🔔</span>` : ""}
         </div>
-        <strong>${jobNeedsCompletion(event) ? "—" : money(jobTotal(event))}</strong>
       </button>
     `;
   }).join("");
@@ -705,7 +787,7 @@ function showSetupIfNeeded() {
 
 function resetAppToFirstUse() {
   const ok = window.confirm(
-    "¿Reiniciar la app como el primer uso?\n\nSe borran trabajos, empresas nuevas, montos, tu nombre y todo lo guardado en este teléfono."
+    "¿Reiniciar la app como el primer uso?\n\nSe borran trabajos, gastos fijos, empresas nuevas, montos, tu nombre y todo lo guardado en este teléfono."
   );
   if (!ok) return;
   const sure = window.confirm("Esto no se puede deshacer. ¿Borrar todo?");
@@ -953,8 +1035,8 @@ function jobLinesHTML(events) {
   return events.map((event) => `
     <div class="job-line">
       <span class="date">${escapeHtml(formatJobDateWithDays(event))}</span>
-      <span>${escapeHtml(eventReportLabel(event))}</span>
-      <strong>${money(jobTotal(event))}</strong>
+      <span class="job-activity">${escapeHtml(eventReportLabel(event))}</span>
+      <strong class="job-amount">${money(jobTotal(event))}</strong>
     </div>
   `).join("");
 }
@@ -1237,6 +1319,145 @@ function renderReports() {
   renderGoogleCard();
 }
 
+function expenseCardHTML(expense, paid) {
+  const due = expenseDueDate(expense);
+  const dueText = formatDate(due, { day: "numeric", month: "short" });
+  return `
+    <article class="expense-card" data-edit-expense="${expense.id}">
+      <div class="breakdown-row">
+        <div>
+          <strong>${escapeHtml(expense.name)}</strong>
+          <div class="muted">Día ${expense.dueDay} · ${escapeHtml(dueText)}</div>
+          ${expense.notes ? `<div class="muted">${escapeHtml(expense.notes)}</div>` : ""}
+        </div>
+        <strong>${money(expense.amount)}</strong>
+      </div>
+      <span class="badge ${paid ? "paid" : "pending"}">${paid ? "Pagado" : "Pendiente"}</span>
+      ${paid
+        ? `<button type="button" class="expense-unpay-btn" data-unpay-expense="${expense.id}">Marcar pendiente</button>`
+        : `<button type="button" class="expense-pay-btn" data-pay-expense="${expense.id}">Marcar pagado</button>`}
+    </article>
+  `;
+}
+
+function renderBudget() {
+  const snap = budgetSnapshot();
+  const monthLabel = formatDate(state.budgetMonth, { month: "long", year: "numeric" });
+  document.getElementById("budgetMonthLabel").textContent = monthLabel;
+  const balanceClass = snap.plannedBalance >= 0 ? "positive" : "negative";
+  document.getElementById("budgetMetrics").innerHTML = `
+    <div class="metric"><span>Ingresos (trabajos)</span><strong>${money(snap.incomeTotal)}</strong></div>
+    <div class="metric"><span>Gastos fijos</span><strong>${money(snap.expenseTotal)}</strong></div>
+    <div class="metric"><span>Pagado</span><strong>${money(snap.expensePaid)}</strong></div>
+    <div class="metric"><span>Falta por pagar</span><strong>${money(snap.expensePending)}</strong></div>
+  `;
+  document.getElementById("budgetSummary").innerHTML = `
+    <h3>Presupuesto del mes</h3>
+    <p class="muted">Los ingresos salen de tus trabajos de este mes. Los gastos fijos se repiten cada mes hasta que los borres.</p>
+    <div class="breakdown-row"><span>A cobrar (trabajos)</span><strong>${money(snap.incomeTotal)}</strong></div>
+    <div class="breakdown-row"><span>Ya cobrado</span><strong>${money(snap.incomePaid)}</strong></div>
+    <div class="breakdown-row"><span>Por cobrar</span><strong>${money(snap.incomePending)}</strong></div>
+    <div class="breakdown-row"><span>Gastos fijos</span><strong>${money(snap.expenseTotal)}</strong></div>
+    <div class="breakdown-row"><span>Gastos pagados</span><strong>${money(snap.expensePaid)}</strong></div>
+    <div class="breakdown-row"><span>Gastos pendientes</span><strong>${money(snap.expensePending)}</strong></div>
+    <div class="total-line"><span>Balance previsto</span><span class="budget-balance ${balanceClass}">${money(snap.plannedBalance)}</span></div>
+    <div class="pending-line"><span>Queda (cobrado − pagado)</span><span>${money(snap.cashBalance)}</span></div>
+  `;
+  document.getElementById("budgetPending").innerHTML = `
+    <h3>Falta por pagar</h3>
+    <p class="muted">Gastos de ${monthLabel} que todavía no marcas como pagados.</p>
+    ${snap.pending.length
+      ? snap.pending.map((item) => expenseCardHTML(item, false)).join("")
+      : `<p class="muted">${snap.expenses.length ? "Este mes no te falta ningún gasto fijo." : "Todavía no hay gastos fijos. Toca + o Agregar gasto fijo."}</p>`}
+  `;
+  const paidBox = document.getElementById("budgetPaid");
+  paidBox.classList.toggle("hidden", !snap.paid.length);
+  paidBox.innerHTML = snap.paid.length ? `
+    <h3>Ya pagado</h3>
+    <p class="muted">Estos gastos ya los marcaste como pagados este mes.</p>
+    ${snap.paid.map((item) => expenseCardHTML(item, true)).join("")}
+  ` : "";
+}
+
+function fillExpenseDueDay(selected) {
+  const select = document.getElementById("expenseDueDay");
+  const value = String(selected || 1);
+  select.innerHTML = Array.from({ length: 31 }, (_, i) => {
+    const day = String(i + 1);
+    return `<option value="${day}" ${day === value ? "selected" : ""}>${day}</option>`;
+  }).join("");
+}
+
+function openExpenseForm(expenseId) {
+  const form = document.getElementById("expenseForm");
+  const expense = state.expenses.find((item) => item.id === expenseId);
+  state.editingExpenseId = expenseId || null;
+  form.name.value = expense?.name || "";
+  form.amount.value = expense ? formatAmountInput(expense.amount) : "";
+  form.notes.value = expense?.notes || "";
+  fillExpenseDueDay(expense?.dueDay || 1);
+  document.getElementById("expenseFormTitle").textContent = expense ? "Editar gasto fijo" : "Nuevo gasto fijo";
+  document.getElementById("deleteExpense").classList.toggle("hidden", !expense);
+  document.getElementById("expenseFormError").classList.add("hidden");
+  document.getElementById("expenseOverlay").classList.remove("hidden");
+}
+
+function closeExpenseForm() {
+  document.getElementById("expenseOverlay").classList.add("hidden");
+  state.editingExpenseId = null;
+}
+
+function deleteSavedExpense() {
+  const expense = state.expenses.find((item) => item.id === state.editingExpenseId);
+  if (!expense) return;
+  if (!confirm(`¿Eliminar "${expense.name}" de los gastos fijos?\n\nDeja de salir en todos los meses.`)) return;
+  const id = expense.id;
+  state.expenses = state.expenses.filter((item) => item.id !== id);
+  Object.keys(state.expensePaid).forEach((key) => {
+    if (key.endsWith(`:${id}`)) delete state.expensePaid[key];
+  });
+  persist();
+  closeExpenseForm();
+  renderBudget();
+}
+
+function budgetHTML(snap) {
+  const monthLabel = formatDate(state.budgetMonth, { month: "long", year: "numeric" });
+  const row = (item, paid) => `
+    <tr>
+      <td>${escapeHtml(item.name)}</td>
+      <td>Día ${item.dueDay}</td>
+      <td>${paid ? "Pagado" : "Pendiente"}</td>
+      <td>${money(item.amount)}</td>
+    </tr>`;
+  return `
+    <h1>Presupuesto</h1>
+    <p>${escapeHtml(monthLabel)}</p>
+    <p>Generado ${new Date().toLocaleString(localeTag())}</p>
+    <p><strong>Ingresos:</strong> ${money(snap.incomeTotal)} &nbsp; <strong>Gastos fijos:</strong> ${money(snap.expenseTotal)} &nbsp; <strong>Balance:</strong> ${money(snap.plannedBalance)}</p>
+    <p><strong>Gastos pagados:</strong> ${money(snap.expensePaid)} &nbsp; <strong>Falta por pagar:</strong> ${money(snap.expensePending)}</p>
+    <p><strong>Queda (cobrado − pagado):</strong> ${money(snap.cashBalance)}</p>
+    <h3>Falta por pagar</h3>
+    <table>
+      <thead><tr><th>Gasto</th><th>Día</th><th>Estado</th><th>Monto</th></tr></thead>
+      <tbody>${snap.pending.map((item) => row(item, false)).join("") || `<tr><td colspan="4">Nada pendiente</td></tr>`}</tbody>
+    </table>
+    <h3>Ya pagado</h3>
+    <table>
+      <thead><tr><th>Gasto</th><th>Día</th><th>Estado</th><th>Monto</th></tr></thead>
+      <tbody>${snap.paid.map((item) => row(item, true)).join("") || `<tr><td colspan="4">Nada pagado este mes</td></tr>`}</tbody>
+    </table>
+  `;
+}
+
+function printBudget() {
+  const snap = budgetSnapshot();
+  const root = document.getElementById("printRoot");
+  root.innerHTML = `${budgetHTML(snap)}<p class="pdf-footer">${APP_CREDIT}</p>`;
+  root.hidden = false;
+  window.print();
+}
+
 function reportHTML(summary) {
   const totalDays = summary.events.reduce((sum, event) => sum + eventDayCount(event), 0);
   const rows = summary.events.map((event) => {
@@ -1316,16 +1537,15 @@ function renderCompanySelect() {
   `).join("");
 }
 
-function renderServiceChips() {
-  const selected = new Set(state.selectedServiceIds);
-  document.getElementById("serviceChips").innerHTML = sortedServices().map((s) => `
-    <div class="service-chip">
-      <button type="button" class="chip ${selected.has(s.id) ? "active" : ""}" data-service-toggle="${s.id}">
-        ${escapeHtml(s.name)}
-      </button>
-      <button type="button" class="chip-edit" data-edit-service="${s.id}" aria-label="Editar ${escapeHtml(s.name)}">✎</button>
-    </div>
-  `).join("") || `<p class="muted">Crea el primer servicio con + Nuevo.</p>`;
+function renderServiceSelect() {
+  const select = document.getElementById("serviceSelect");
+  const selected = state.selectedServiceIds[0] || "";
+  const services = sortedServices();
+  select.innerHTML = `<option value="">Selecciona un servicio</option>` + services.map((s) => `
+    <option value="${s.id}" ${s.id === selected ? "selected" : ""}>${escapeHtml(s.name)}</option>
+  `).join("");
+  const editBtn = document.getElementById("editServiceBtn");
+  if (editBtn) editBtn.disabled = !selected;
 }
 
 function jobDateLabel(iso) {
@@ -1561,7 +1781,7 @@ function startReminderWatch() {
 
 function registerReminderWorker() {
   if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./sw.js?v=google-ios").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=gastos-fijos").catch(() => {});
 }
 
 function openEventForm(eventId) {
@@ -1589,7 +1809,7 @@ function openEventForm(eventId) {
   document.getElementById("formError").classList.add("hidden");
   document.querySelectorAll(".pay-btn").forEach((b) => b.classList.toggle("active", b.dataset.status === state.paymentStatus));
   renderCompanySelect();
-  renderServiceChips();
+  renderServiceSelect();
   loadRemindersIntoForm(event);
   updateAmountHint();
   document.getElementById("overlay").classList.remove("hidden");
@@ -1628,7 +1848,7 @@ function deleteSavedService() {
   state.services = state.services.filter((item) => item.id !== service.id);
   persist();
   closeServiceForm();
-  renderServiceChips();
+  renderServiceSelect();
 }
 
 function openCompanyForm(id) {
@@ -1654,16 +1874,24 @@ function setTab(tab) {
   document.querySelector(".phone").dataset.tab = tab;
   document.getElementById("agendaScreen").classList.toggle("hidden", tab !== "agenda");
   document.getElementById("reportsScreen").classList.toggle("hidden", tab !== "reports");
-  document.getElementById("screenTitle").textContent = tab === "agenda" ? "Agenda" : "Reportes";
-  document.getElementById("headerAction").classList.toggle("hidden", tab !== "agenda");
+  document.getElementById("budgetScreen").classList.toggle("hidden", tab !== "budget");
+  const titles = { agenda: "Agenda", reports: "Reportes", budget: "Presupuesto" };
+  document.getElementById("screenTitle").textContent = titles[tab] || "Agenda";
+  document.getElementById("headerAction").classList.toggle("hidden", tab === "reports");
+  document.getElementById("headerAction").setAttribute(
+    "aria-label",
+    tab === "budget" ? "Agregar gasto fijo" : "Agendar nuevo trabajo"
+  );
   document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   if (tab === "reports") renderReports();
+  if (tab === "budget") renderBudget();
 }
 
 function render() {
   renderCalendar();
   renderDayPanel();
   if (state.tab === "reports") renderReports();
+  if (state.tab === "budget") renderBudget();
 }
 
 document.addEventListener("click", (event) => {
@@ -1701,22 +1929,6 @@ document.addEventListener("click", (event) => {
   const edit = event.target.closest("[data-edit]");
   if (edit) {
     openEventForm(edit.dataset.edit);
-    return;
-  }
-  const editService = event.target.closest("[data-edit-service]");
-  if (editService) {
-    openServiceForm(editService.dataset.editService);
-    return;
-  }
-  const chip = event.target.closest("[data-service-toggle]");
-  if (chip) {
-    const id = chip.dataset.serviceToggle;
-    if (state.selectedServiceIds.includes(id)) {
-      state.selectedServiceIds = state.selectedServiceIds.filter((item) => item !== id);
-    } else {
-      state.selectedServiceIds.push(id);
-    }
-    renderServiceChips();
     return;
   }
   const reminderKind = event.target.closest("[data-reminder-kind]");
@@ -1761,10 +1973,87 @@ document.getElementById("nextMonth").onclick = () => {
   state.selected = toISODate(state.month);
   render();
 };
-document.getElementById("headerAction").onclick = () => openEventForm();
+document.getElementById("headerAction").onclick = () => {
+  if (state.tab === "budget") openExpenseForm();
+  else openEventForm();
+};
+document.getElementById("addExpenseFromBudget").onclick = () => openExpenseForm();
+document.getElementById("cancelExpense").onclick = closeExpenseForm;
+document.getElementById("deleteExpense").onclick = deleteSavedExpense;
+document.getElementById("printBudget").onclick = printBudget;
+document.getElementById("prevBudgetMonth").onclick = () => {
+  state.budgetMonth = new Date(state.budgetMonth.getFullYear(), state.budgetMonth.getMonth() - 1, 1);
+  renderBudget();
+};
+document.getElementById("nextBudgetMonth").onclick = () => {
+  state.budgetMonth = new Date(state.budgetMonth.getFullYear(), state.budgetMonth.getMonth() + 1, 1);
+  renderBudget();
+};
+document.getElementById("budgetScreen").addEventListener("click", (event) => {
+  const pay = event.target.closest("[data-pay-expense]");
+  if (pay) {
+    event.preventDefault();
+    event.stopPropagation();
+    setExpensePaid(pay.dataset.payExpense, state.budgetMonth, true);
+    persist();
+    renderBudget();
+    return;
+  }
+  const unpay = event.target.closest("[data-unpay-expense]");
+  if (unpay) {
+    event.preventDefault();
+    event.stopPropagation();
+    setExpensePaid(unpay.dataset.unpayExpense, state.budgetMonth, false);
+    persist();
+    renderBudget();
+    return;
+  }
+  const edit = event.target.closest("[data-edit-expense]");
+  if (edit) openExpenseForm(edit.dataset.editExpense);
+});
+document.getElementById("expenseForm").onsubmit = (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const error = document.getElementById("expenseFormError");
+  const name = form.name.value.trim();
+  const amount = parseAmount(form.amount.value);
+  if (!name) {
+    error.textContent = "Escribe el nombre del gasto.";
+    error.classList.remove("hidden");
+    return;
+  }
+  if (!(amount > 0)) {
+    error.textContent = "Escribe el monto del mes.";
+    error.classList.remove("hidden");
+    return;
+  }
+  const payload = {
+    id: state.editingExpenseId || uid(),
+    name,
+    amount,
+    dueDay: Number(form.dueDay.value) || 1,
+    notes: form.notes.value.trim(),
+  };
+  if (state.editingExpenseId) {
+    state.expenses = state.expenses.map((item) => (item.id === payload.id ? payload : item));
+  } else {
+    state.expenses.push(payload);
+  }
+  persist();
+  closeExpenseForm();
+  renderBudget();
+};
 document.getElementById("cancelForm").onclick = closeEventForm;
 document.getElementById("newCompanyBtn").onclick = () => openCompanyForm();
+document.getElementById("editServiceBtn").onclick = () => {
+  const id = state.selectedServiceIds[0];
+  if (id) openServiceForm(id);
+};
 document.getElementById("newServiceBtn").onclick = () => openServiceForm();
+document.getElementById("serviceSelect").onchange = (event) => {
+  state.selectedServiceIds = event.target.value ? [event.target.value] : [];
+  renderServiceSelect();
+};
 document.getElementById("cancelService").onclick = closeServiceForm;
 document.getElementById("deleteService").onclick = deleteSavedService;
 document.getElementById("companySelect").onchange = (event) => {
@@ -1890,7 +2179,7 @@ document.getElementById("eventForm").onsubmit = async (event) => {
   const form = event.currentTarget;
   const error = document.getElementById("formError");
   if (!state.selectedServiceIds.length) {
-    error.textContent = "Selecciona uno o más servicios.";
+    error.textContent = "Selecciona un servicio.";
     error.classList.remove("hidden");
     return;
   }
@@ -1901,7 +2190,7 @@ document.getElementById("eventForm").onsubmit = async (event) => {
   }
   const names = state.selectedServiceIds.map((id) => serviceById(id)?.name).filter(Boolean);
   if (!names.length) {
-    error.textContent = "Selecciona uno o más servicios.";
+    error.textContent = "Selecciona un servicio.";
     error.classList.remove("hidden");
     return;
   }
@@ -2012,13 +2301,11 @@ document.getElementById("serviceForm").onsubmit = (event) => {
     if (current) current.name = name;
   } else {
     const created = rememberService(name);
-    if (!state.selectedServiceIds.includes(created.id)) {
-      state.selectedServiceIds.push(created.id);
-    }
+    if (created) state.selectedServiceIds = [created.id];
   }
   persist();
   closeServiceForm();
-  renderServiceChips();
+  renderServiceSelect();
 };
 
 document.getElementById("setupForm").onsubmit = (event) => {
