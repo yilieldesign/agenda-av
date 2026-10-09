@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="manifest" href="manifest.webmanifest?v=cobro-30" />
-  <link rel="stylesheet" href="styles.css?v=cobro-30" />
+  <link rel="manifest" href="manifest.webmanifest?v=gasto-mes" />
+  <link rel="stylesheet" href="styles.css?v=gasto-mes" />
 </head>
 <body>
   <div class="phone">
@@ -60,7 +60,7 @@
           <h2 id="budgetMonthLabel"></h2>
           <button type="button" id="nextBudgetMonth" aria-label="Mes siguiente">›</button>
         </div>
-        <p class="muted">Agrega tus gastos fijos una vez (alquiler, internet, teléfono). Salen todos los meses. Aquí marcas lo que ya pagaste y lo que falta.</p>
+        <p class="muted">Agrega tus gastos fijos una vez (alquiler, internet, teléfono). Elige desde qué mes salen, o déjalos solo en un mes. Aquí marcas lo que ya pagaste y lo que falta.</p>
       </section>
       <section class="metrics" id="budgetMetrics"></section>
       <section class="card" id="budgetPending"></section>
@@ -258,7 +258,7 @@
     <form class="sheet" id="expenseForm">
       <div class="sheet-handle"></div>
       <h2 id="expenseFormTitle">Nuevo gasto fijo</h2>
-      <p class="muted">Queda para todos los meses. La entidad sirve para agrupar (Claro, Edesur…). El título es qué estás pagando (mi renta, renta mami).</p>
+      <p class="muted">La entidad sirve para agrupar (Claro, Edesur…). El título es qué estás pagando (mi renta, renta mami). El mes dice desde cuándo sale, o si es solo de un mes.</p>
       <label>Entidad
         <input type="text" name="entity" maxlength="80" placeholder="Ej. Claro" />
       </label>
@@ -270,6 +270,15 @@
           <span class="money-prefix">RD$</span>
           <input type="text" name="amount" inputmode="decimal" enterkeyhint="done" autocomplete="off" required placeholder="" />
         </div>
+      </label>
+      <label>Mes
+        <input type="month" name="startMonth" required />
+      </label>
+      <label>Se paga
+        <select name="repeat">
+          <option value="monthly">Todos los meses desde este</option>
+          <option value="once">Solo este mes</option>
+        </select>
       </label>
       <label>Día de pago
         <select name="dueDay" id="expenseDueDay"></select>
@@ -316,10 +325,10 @@
 
   <div id="reminderToast" class="reminder-toast hidden" role="status"></div>
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="ics.js?v=cobro-30"></script>
-  <script src="google.js?v=cobro-30"></script>
-  <script src="pdf.js?v=cobro-30"></script>
-  <script src="reminders.js?v=cobro-30"></script>
-  <script src="app.js?v=cobro-30"></script>
+  <script src="ics.js?v=gasto-mes"></script>
+  <script src="google.js?v=gasto-mes"></script>
+  <script src="pdf.js?v=gasto-mes"></script>
+  <script src="reminders.js?v=gasto-mes"></script>
+  <script src="app.js?v=gasto-mes"></script>
 </body>
 </html>

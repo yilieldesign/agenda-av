@@ -10,6 +10,8 @@ final class FixedExpense {
     var dueDay: Int
     var notes: String
     var paidMonthsRaw: String
+    var startMonth: String = ""
+    var oneTime: Bool = false
 
     init(
         uuid: UUID = UUID(),
@@ -18,7 +20,9 @@ final class FixedExpense {
         amount: Decimal,
         dueDay: Int,
         notes: String = "",
-        paidMonthsRaw: String = "[]"
+        paidMonthsRaw: String = "[]",
+        startMonth: String = "",
+        oneTime: Bool = false
     ) {
         self.uuid = uuid
         self.entity = entity.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -27,6 +31,8 @@ final class FixedExpense {
         self.dueDay = min(31, max(1, dueDay))
         self.notes = notes
         self.paidMonthsRaw = paidMonthsRaw
+        self.startMonth = Self.normalizedMonthKey(startMonth)
+        self.oneTime = oneTime
     }
 
     static func splitName(_ name: String) -> (entity: String, label: String) {
@@ -100,6 +106,42 @@ final class FixedExpense {
         let year = calendar.component(.year, from: date)
         let month = calendar.component(.month, from: date)
         return String(format: "%04d-%02d", year, month)
+    }
+
+    static func normalizedMonthKey(_ value: String) -> String {
+        let text = String(value.prefix(7))
+        let parts = text.split(separator: "-")
+        guard parts.count == 2, parts[0].count == 4, parts[1].count == 2,
+              let year = Int(parts[0]), let month = Int(parts[1]),
+              (1...12).contains(month), year > 0 else { return "" }
+        return String(format: "%04d-%02d", year, month)
+    }
+
+    var startMonthDate: Date? {
+        let parts = Self.normalizedMonthKey(startMonth).split(separator: "-")
+        guard parts.count == 2, let year = Int(parts[0]), let month = Int(parts[1]) else { return nil }
+        return Calendar.current.date(from: DateComponents(year: year, month: month, day: 1))
+    }
+
+    func applies(in month: Date, calendar: Calendar = .current) -> Bool {
+        let key = Self.monthKey(month, calendar: calendar)
+        if oneTime {
+            let start = startMonth.isEmpty ? key : startMonth
+            return start == key
+        }
+        if startMonth.isEmpty { return true }
+        return key >= startMonth
+    }
+
+    var monthNote: String {
+        let label = startMonthDate?.formatted(.dateTime.month(.wide).year().locale(Locale(identifier: "es_DO"))) ?? ""
+        if oneTime {
+            return label.isEmpty ? "Solo este mes" : "Solo \(label)"
+        }
+        if !label.isEmpty {
+            return "Desde \(label)"
+        }
+        return ""
     }
 
     func isPaid(in month: Date, calendar: Calendar = .current) -> Bool {

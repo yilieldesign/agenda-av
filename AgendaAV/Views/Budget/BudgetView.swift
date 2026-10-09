@@ -20,16 +20,20 @@ struct BudgetView: View {
         ReportCalculator.summarize(events: events, period: period)
     }
 
+    private var monthExpenses: [FixedExpense] {
+        expenses.filter { $0.applies(in: month) }
+    }
+
     private var pending: [FixedExpense] {
-        expenses.filter { !$0.isPaid(in: month) }
+        monthExpenses.filter { !$0.isPaid(in: month) }
     }
 
     private var paid: [FixedExpense] {
-        expenses.filter { $0.isPaid(in: month) }
+        monthExpenses.filter { $0.isPaid(in: month) }
     }
 
     private var expenseTotal: Decimal {
-        expenses.reduce(0) { $0 + $1.amount }
+        monthExpenses.reduce(0) { $0 + $1.amount }
     }
 
     private var expensePaid: Decimal {
@@ -74,10 +78,10 @@ struct BudgetView: View {
                 }
             }
             .sheet(isPresented: $showingNewExpense) {
-                ExpenseEditorSheet()
+                ExpenseEditorSheet(defaultMonth: month)
             }
             .sheet(item: $editingExpense) { expense in
-                ExpenseEditorSheet(expense: expense)
+                ExpenseEditorSheet(expense: expense, defaultMonth: month)
             }
         }
     }
@@ -101,7 +105,7 @@ struct BudgetView: View {
                     Image(systemName: "chevron.right")
                 }
             }
-            Text("Agrega tus gastos fijos una vez (alquiler, internet, teléfono). Salen todos los meses. Aquí marcas lo que ya pagaste y lo que falta.")
+            Text("Agrega tus gastos fijos una vez (alquiler, internet, teléfono). Elige desde qué mes salen, o déjalos solo en un mes. Aquí marcas lo que ya pagaste y lo que falta.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -143,8 +147,10 @@ struct BudgetView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if pending.isEmpty {
-                Text(expenses.isEmpty
-                     ? "Todavía no hay gastos fijos. Toca + para agregar uno."
+                Text(monthExpenses.isEmpty
+                     ? (expenses.isEmpty
+                        ? "Todavía no hay gastos fijos. Toca + para agregar uno."
+                        : "Este mes no hay gastos fijos. Toca + para agregar uno de este mes.")
                      : "Este mes no te falta ningún gasto fijo.")
                     .foregroundStyle(.secondary)
             } else {
@@ -243,7 +249,9 @@ struct BudgetView: View {
                         Text(title)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
-                        Text("Día \(expense.dueDay)")
+                        Text(expense.monthNote.isEmpty
+                             ? "Día \(expense.dueDay)"
+                             : "Día \(expense.dueDay) · \(expense.monthNote)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         if !expense.notes.isEmpty {
@@ -263,6 +271,14 @@ struct BudgetView: View {
             Text(paid ? "Pagado" : "Pendiente")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(paid ? .green : .orange)
+
+            Button {
+                editingExpense = expense
+            } label: {
+                Text("Editar")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
 
             Button {
                 expense.setPaid(!paid, in: month)

@@ -363,8 +363,49 @@ function normalizeExpense(item) {
     name: String(item.name || "").trim() || "Gasto",
     amount: parseAmount(item.amount),
     dueDay,
+    startMonth: normalizeMonthKey(item.startMonth),
+    oneTime: Boolean(item.oneTime),
     notes: String(item.notes || "").slice(0, 500),
   };
+}
+
+function normalizeMonthKey(value) {
+  const text = String(value || "").slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(text) ? text : "";
+}
+
+function parseMonthKey(value) {
+  const text = normalizeMonthKey(value);
+  if (!text) return null;
+  const [year, month] = text.split("-").map(Number);
+  if (month < 1 || month > 12) return null;
+  return new Date(year, month - 1, 1);
+}
+
+function formatMonthKeyLabel(value) {
+  const date = parseMonthKey(value);
+  return date ? formatDate(date, { month: "long", year: "numeric" }) : "";
+}
+
+function expenseAppliesInMonth(expense, monthDate = state.budgetMonth) {
+  const month = monthKey(monthDate);
+  if (expense.oneTime) {
+    return (expense.startMonth || month) === month;
+  }
+  if (!expense.startMonth) return true;
+  return month >= expense.startMonth;
+}
+
+function expenseMonthNote(expense) {
+  if (expense.oneTime) {
+    const label = formatMonthKeyLabel(expense.startMonth);
+    return label ? `Solo ${label}` : "Solo este mes";
+  }
+  if (expense.startMonth) {
+    const label = formatMonthKeyLabel(expense.startMonth);
+    return label ? `Desde ${label}` : "";
+  }
+  return "";
 }
 
 function monthKey(date) {
@@ -467,7 +508,7 @@ function budgetJobSummary(monthDate = state.budgetMonth) {
 
 function budgetSnapshot(monthDate = state.budgetMonth) {
   const jobs = budgetJobSummary(monthDate);
-  const expenses = sortedExpenses();
+  const expenses = sortedExpenses().filter((item) => expenseAppliesInMonth(item, monthDate));
   const pending = expenses.filter((item) => !isExpensePaid(item, monthDate));
   const paid = expenses.filter((item) => isExpensePaid(item, monthDate));
   const expenseTotal = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
@@ -1483,12 +1524,13 @@ function expenseCardHTML(expense, paid, grouped = false) {
       <div class="breakdown-row">
         <div>
           <strong>${escapeHtml(title)}</strong>
-          <div class="muted">Día ${expense.dueDay} · ${escapeHtml(dueText)}</div>
+          <div class="muted">Día ${expense.dueDay} · ${escapeHtml(dueText)}${expenseMonthNote(expense) ? ` · ${escapeHtml(expenseMonthNote(expense))}` : ""}</div>
           ${expense.notes ? `<div class="muted">${escapeHtml(expense.notes)}</div>` : ""}
         </div>
         <strong>${money(expense.amount)}</strong>
       </div>
       <span class="badge ${paid ? "paid" : "pending"}">${paid ? "Pagado" : "Pendiente"}</span>
+      <button type="button" class="secondary expense-edit-btn" data-edit-expense="${expense.id}">Editar</button>
       ${paid
         ? `<button type="button" class="expense-unpay-btn" data-unpay-expense="${expense.id}">Marcar pendiente</button>`
         : `<button type="button" class="expense-pay-btn" data-pay-expense="${expense.id}">Marcar pagado</button>`}
@@ -1533,7 +1575,9 @@ function renderBudget() {
     <p class="muted">Gastos de ${monthLabel} que todavía no marcas como pagados.</p>
     ${snap.pending.length
       ? expenseGroupsHTML(snap.pending, false)
-      : `<p class="muted">${snap.expenses.length ? "Este mes no te falta ningún gasto fijo." : "Todavía no hay gastos fijos. Toca + o Agregar gasto fijo."}</p>`}
+      : `<p class="muted">${sortedExpenses().length
+        ? (snap.expenses.length ? "Este mes no te falta ningún gasto fijo." : "Este mes no hay gastos fijos. Toca + para agregar uno de este mes.")
+        : "Todavía no hay gastos fijos. Toca + o Agregar gasto fijo."}</p>`}
   `;
   const paidBox = document.getElementById("budgetPaid");
   paidBox.classList.toggle("hidden", !snap.paid.length);
@@ -1562,6 +1606,8 @@ function openExpenseForm(expenseId) {
   form.name.value = fields.name;
   form.amount.value = expense ? formatAmountInput(expense.amount) : "";
   form.notes.value = expense?.notes || "";
+  form.startMonth.value = expense?.startMonth || monthKey(state.budgetMonth);
+  form.repeat.value = expense?.oneTime ? "once" : "monthly";
   fillExpenseDueDay(expense?.dueDay || 1);
   document.getElementById("expenseFormTitle").textContent = expense ? "Editar gasto fijo" : "Nuevo gasto fijo";
   document.getElementById("deleteExpense").classList.toggle("hidden", !expense);
@@ -1577,7 +1623,8 @@ function closeExpenseForm() {
 function deleteSavedExpense() {
   const expense = state.expenses.find((item) => item.id === state.editingExpenseId);
   if (!expense) return;
-  if (!confirm(`¿Eliminar "${expenseDisplayName(expense)}" de los gastos fijos?\n\nDeja de salir en todos los meses.`)) return;
+  const when = expense.oneTime ? "este mes" : "todos los meses";
+  if (!confirm(`¿Eliminar "${expenseDisplayName(expense)}" de los gastos fijos?\n\nDeja de salir en ${when}.`)) return;
   const id = expense.id;
   state.expenses = state.expenses.filter((item) => item.id !== id);
   Object.keys(state.expensePaid).forEach((key) => {
@@ -1957,7 +2004,7 @@ function startReminderWatch() {
 
 function registerReminderWorker() {
   if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./sw.js?v=cobro-30").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=gasto-mes").catch(() => {});
 }
 
 function openEventForm(eventId) {
@@ -2212,6 +2259,8 @@ document.getElementById("expenseForm").onsubmit = (event) => {
     name,
     amount,
     dueDay: Number(form.dueDay.value) || 1,
+    startMonth: normalizeMonthKey(form.startMonth.value) || monthKey(state.budgetMonth),
+    oneTime: form.repeat.value === "once",
     notes: form.notes.value.trim(),
   };
   if (state.editingExpenseId) {
