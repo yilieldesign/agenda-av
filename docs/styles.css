@@ -15,8 +15,12 @@
 html, body {
   margin: 0;
   height: 100%;
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
   -webkit-text-size-adjust: 100%;
 }
 body {
@@ -25,10 +29,10 @@ body {
   color: var(--ink);
   position: fixed;
   inset: 0;
-  width: 100%;
 }
 
 .phone {
+  width: 100%;
   max-width: 430px;
   height: 100%;
   margin: 0 auto;
@@ -37,6 +41,9 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  overscroll-behavior: none;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
   padding-top: env(safe-area-inset-top);
   box-shadow: var(--shadow);
 }
@@ -72,10 +79,14 @@ h1 { margin: 2px 0 0; font-size: 28px; }
 .screen {
   padding: 8px 16px 16px;
   flex: 1;
+  min-width: 0;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
 }
 .hidden { display: none !important; }
 .card {
@@ -84,6 +95,8 @@ h1 { margin: 2px 0 0; font-size: 28px; }
   padding: 16px;
   margin-bottom: 14px;
   box-shadow: var(--shadow);
+  min-width: 0;
+  max-width: 100%;
 }
 .month-nav {
   display: flex;
@@ -219,12 +232,15 @@ h1 { margin: 2px 0 0; font-size: 28px; }
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin-bottom: 14px;
+  min-width: 0;
 }
 .metric {
   background: var(--card);
   border-radius: 14px;
   padding: 14px;
   box-shadow: var(--shadow);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .metric span { display: block; color: var(--muted); font-size: 12px; }
 .metric strong { font-size: 18px; }
@@ -320,9 +336,12 @@ h1 { margin: 2px 0 0; font-size: 28px; }
   border-radius: 24px 24px 0 0;
   padding: 12px 18px calc(24px + env(safe-area-inset-bottom));
   max-height: 100%;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
 }
 .sheet-handle {
   width: 42px;

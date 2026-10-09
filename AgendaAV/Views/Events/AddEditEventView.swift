@@ -134,17 +134,15 @@ struct AddEditEventView: View {
                 }
 
                 Section("Cobro") {
-                    if !listedAmounts.isEmpty {
-                        Picker("Monto por día", selection: $amountPick) {
-                            Text("").tag("")
-                            ForEach(listedAmounts, id: \.self) { value in
-                                Text("RD$ \(CurrencyFormat.plainString(from: value))").tag(Self.amountKey(value))
-                            }
-                            Text("Otro monto…").tag("__other")
+                    Picker("Monto por día", selection: $amountPick) {
+                        Text("Selecciona un monto").tag("")
+                        ForEach(listedAmounts, id: \.self) { value in
+                            Text(CurrencyFormat.string(from: value)).tag(Self.amountKey(value))
                         }
-                        .onChange(of: amountPick) { _, key in
-                            applyAmountPick(key)
-                        }
+                        Text("Otro monto…").tag("__other")
+                    }
+                    .onChange(of: amountPick) { _, key in
+                        applyAmountPick(key)
                     }
                     if listedAmounts.isEmpty || amountPick == "__other" {
                         HStack {
@@ -238,7 +236,11 @@ struct AddEditEventView: View {
             }
             .onAppear {
                 syncServiceSelection()
-                if isEditing { syncAmountPick() }
+                if isEditing {
+                    syncAmountPick()
+                } else if listedAmounts.isEmpty {
+                    amountPick = "__other"
+                }
                 if !reminderKinds.isEmpty {
                     Task { notifyDenied = await EventReminderScheduler.permissionDenied() }
                 }

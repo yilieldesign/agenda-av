@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="manifest" href="manifest.webmanifest?v=presupuesto-simple" />
-  <link rel="stylesheet" href="styles.css?v=presupuesto-simple" />
+  <link rel="manifest" href="manifest.webmanifest?v=scroll-y" />
+  <link rel="stylesheet" href="styles.css?v=scroll-y" />
 </head>
 <body>
   <div class="phone">
@@ -172,18 +172,17 @@
         <button type="button" class="text-btn" id="editServiceBtn">Editar</button>
         <button type="button" class="text-btn" id="newServiceBtn">+ Nuevo</button>
       </div>
-      <label>Monto por día
-        <div class="money-field" id="amountSelectWrap">
-          <span class="money-prefix">RD$</span>
-          <select id="amountSelect" name="amountSelect" aria-label="Monto por día">
-            <option value=""></option>
+      <div class="dropdown-field">
+        <label>Monto por día
+          <select id="amountSelect" name="amountSelect">
+            <option value="">Selecciona un monto</option>
           </select>
-        </div>
-        <div class="money-field hidden" id="otherAmountWrap">
-          <span class="money-prefix">RD$</span>
-          <input type="text" name="amount" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="" />
-        </div>
-      </label>
+        </label>
+      </div>
+      <div class="money-field hidden" id="otherAmountWrap">
+        <span class="money-prefix">RD$</span>
+        <input type="text" name="amount" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="" aria-label="Otro monto" />
+      </div>
       <p class="muted" id="amountHint"></p>
       <div class="segmented">
         <button type="button" class="pay-btn active" data-status="pending">Pendiente</button>
@@ -306,10 +305,10 @@
 
   <div id="reminderToast" class="reminder-toast hidden" role="status"></div>
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="ics.js?v=presupuesto-simple"></script>
-  <script src="google.js?v=presupuesto-simple"></script>
-  <script src="pdf.js?v=presupuesto-simple"></script>
-  <script src="reminders.js?v=presupuesto-simple"></script>
-  <script src="app.js?v=presupuesto-simple"></script>
+  <script src="ics.js?v=scroll-y"></script>
+  <script src="google.js?v=scroll-y"></script>
+  <script src="pdf.js?v=scroll-y"></script>
+  <script src="reminders.js?v=scroll-y"></script>
+  <script src="app.js?v=scroll-y"></script>
 </body>
 </html>

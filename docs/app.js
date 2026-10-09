@@ -126,10 +126,7 @@ function formAmountValue() {
 
 function showOtherAmount(show) {
   const wrap = document.getElementById("otherAmountWrap");
-  const selectWrap = document.getElementById("amountSelectWrap");
-  const amounts = uniqueSavedAmounts();
-  if (selectWrap) selectWrap.classList.toggle("hidden", amounts.length === 0);
-  if (wrap) wrap.classList.toggle("hidden", amounts.length > 0 && !show);
+  if (wrap) wrap.classList.toggle("hidden", !show);
 }
 
 function renderAmountSelect(selected) {
@@ -140,14 +137,18 @@ function renderAmountSelect(selected) {
   const current = selected === "" || selected == null ? "" : parseAmount(selected);
   const inList = current !== "" && amounts.includes(current);
   select.innerHTML = [
-    `<option value=""></option>`,
-    ...amounts.map((n) => `<option value="${n}">${formatAmountOption(n)}</option>`),
+    `<option value="">Selecciona un monto</option>`,
+    ...amounts.map((n) => `<option value="${n}">${money(n)}</option>`),
     `<option value="__other">Otro monto…</option>`,
   ].join("");
-  if (current === "") {
+  if (current === "" && !amounts.length) {
+    select.value = "__other";
+    form.amount.value = "";
+    showOtherAmount(true);
+  } else if (current === "") {
     select.value = "";
     form.amount.value = "";
-    showOtherAmount(amounts.length === 0);
+    showOtherAmount(false);
   } else if (inList) {
     select.value = String(current);
     form.amount.value = formatAmountInput(current);
@@ -169,7 +170,7 @@ function onAmountSelectChange() {
     form.amount.focus();
   } else if (!select.value) {
     form.amount.value = "";
-    showOtherAmount(false);
+    showOtherAmount(!uniqueSavedAmounts().length);
   } else {
     form.amount.value = formatAmountInput(select.value);
     showOtherAmount(false);
@@ -1771,7 +1772,7 @@ function startReminderWatch() {
 
 function registerReminderWorker() {
   if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./sw.js?v=presupuesto-simple").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=scroll-y").catch(() => {});
 }
 
 function openEventForm(eventId) {
