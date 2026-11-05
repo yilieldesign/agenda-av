@@ -289,6 +289,14 @@ h1 { margin: 2px 0 0; font-size: 28px; }
   color: var(--muted);
 }
 .segmented button.active { background: white; color: var(--ink); box-shadow: var(--shadow); }
+#approvalPicker .approve-btn.active[data-approval="pending"] {
+  background: #dc2626;
+  color: white;
+}
+#approvalPicker .approve-btn.active[data-approval="approved"] {
+  background: #15803d;
+  color: white;
+}
 .segmented.wrap {
   display: grid;
   grid-template-columns: 1fr 1fr;
