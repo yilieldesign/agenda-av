@@ -278,7 +278,7 @@ const AgendaGoogle = {
       return null;
     }
     const title = String(event.summary || "Trabajo importado").trim();
-    const notes = [event.location, event.description].filter(Boolean).join("\n").slice(0, 500);
+    const notes = [event.location, event.description].filter(Boolean).join("\n");
     return {
       uid: `google:${event.id}:${startDate}:${startTime}`,
       title: title || "Trabajo importado",

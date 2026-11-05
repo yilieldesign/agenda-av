@@ -222,9 +222,19 @@ h1 { margin: 2px 0 0; font-size: 28px; }
 .approved-card h3 { margin: 4px 0 2px; font-size: 17px; }
 .approval-note {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   margin: 8px 0 0;
   color: var(--ink);
   font-size: 14px;
+}
+#eventForm textarea[name="notes"] {
+  min-height: 8.5rem;
+  field-sizing: content;
+  resize: vertical;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
 }
 .muted { color: var(--muted); font-size: 13px; }
 .row-between, .row-actions { display: flex; gap: 10px; justify-content: space-between; align-items: center; }

@@ -1055,20 +1055,35 @@ function rememberDismissedCalendar(key) {
   }
 }
 
+function notesWereCutOff(stored, incoming) {
+  const current = String(stored || "");
+  const next = String(incoming || "");
+  return Boolean(next) && next.length > current.length && next.startsWith(current);
+}
+
 function importParsedItems(items) {
-  const existing = new Set(state.events.map((event) => event.icsUid).filter(Boolean));
+  const byKey = new Map();
+  state.events.forEach((event) => {
+    if (event.icsUid) byKey.set(event.icsUid, event);
+  });
   const dismissed = new Set(state.dismissedCalendarKeys || []);
   let added = 0;
   let skipped = 0;
+  let notesUpdated = 0;
   const created = [];
   for (const item of items) {
     if (!item?.startDate) continue;
     const key = icsEventKey(item);
-    if (existing.has(key) || dismissed.has(key)) {
+    const notes = String(item.notes || "");
+    const found = byKey.get(key);
+    if (found || dismissed.has(key)) {
+      if (found && notesWereCutOff(found.notes, notes)) {
+        found.notes = notes;
+        notesUpdated += 1;
+      }
       skipped += 1;
       continue;
     }
-    existing.add(key);
     const startDate = item.startDate;
     const endDate = item.endDate && item.endDate >= startDate ? item.endDate : startDate;
     const startTime = normalizeTime(item.startTime);
@@ -1086,18 +1101,19 @@ function importParsedItems(items) {
       amount: 0,
       paymentStatus: "pending",
       approvalStatus: "pending",
-      notes: String(item.notes || "").slice(0, 500),
+      notes,
       companyId: "",
       reminders: [],
       icsUid: key,
       needsCompletion: true,
     };
     state.events.push(event);
+    byKey.set(key, event);
     created.push(event);
     added += 1;
   }
-  if (added) persist();
-  return { added, skipped, created };
+  if (added || notesUpdated) persist();
+  return { added, skipped, created, notesUpdated };
 }
 
 function applyImportedItems(items, goToAgenda) {
@@ -1133,12 +1149,19 @@ async function importIcsFile(file) {
     window.alert("No se encontraron eventos en el archivo.");
     return;
   }
-  const { added, skipped } = applyImportedItems(items, true);
+  const { added, skipped, notesUpdated } = applyImportedItems(items, true);
   if (added) {
-    showReminderToast(`Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.`);
+    showReminderToast(`Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.${notesUpdatedSuffix(notesUpdated)}`);
+  } else if (notesUpdated) {
+    showReminderToast(`Se completaron las notas de ${notesUpdated} trabajo${notesUpdated === 1 ? "" : "s"}.`);
   } else if (skipped) {
     showReminderToast("Esos eventos ya estaban, o los habías eliminado.");
   }
+}
+
+function notesUpdatedSuffix(count) {
+  if (!count) return "";
+  return ` Se completaron las notas de ${count} trabajo${count === 1 ? "" : "s"}.`;
 }
 
 function renderGoogleCard() {
@@ -1198,12 +1221,14 @@ async function connectGoogle() {
   }
   try {
     const items = await AgendaGoogle.connect();
-    const { added } = applyImportedItems(items, true);
+    const { added, notesUpdated } = applyImportedItems(items, true);
     renderGoogleCard();
     showReminderToast(
       added
-        ? `Conectado. Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.`
-        : "Conectado. No había eventos nuevos."
+        ? `Conectado. Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.${notesUpdatedSuffix(notesUpdated)}`
+        : notesUpdated
+          ? `Conectado. Se completaron las notas de ${notesUpdated} trabajo${notesUpdated === 1 ? "" : "s"}.`
+          : "Conectado. No había eventos nuevos."
     );
   } catch (err) {
     window.alert(AgendaGoogle.explainError(err));
@@ -1224,16 +1249,20 @@ async function syncGoogle(interactive) {
   try {
     const items = interactive ? await AgendaGoogle.sync() : await AgendaGoogle.syncIfFresh();
     if (!interactive && !items.length) return;
-    const { added, skipped } = applyImportedItems(items, interactive);
+    const { added, skipped, notesUpdated } = applyImportedItems(items, interactive);
     renderGoogleCard();
     if (!interactive) {
       if (added) {
-        showReminderToast(`Google: ${added} trabajo${added === 1 ? "" : "s"} nuevo${added === 1 ? "" : "s"}. Complétalos en la agenda.`);
+        showReminderToast(`Google: ${added} trabajo${added === 1 ? "" : "s"} nuevo${added === 1 ? "" : "s"}. Complétalos en la agenda.${notesUpdatedSuffix(notesUpdated)}`);
+      } else if (notesUpdated) {
+        showReminderToast(`Se completaron las notas de ${notesUpdated} trabajo${notesUpdated === 1 ? "" : "s"}.`);
       }
       return;
     }
     if (added) {
-      showReminderToast(`Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.`);
+      showReminderToast(`Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.${notesUpdatedSuffix(notesUpdated)}`);
+    } else if (notesUpdated) {
+      showReminderToast(`Se completaron las notas de ${notesUpdated} trabajo${notesUpdated === 1 ? "" : "s"}.`);
     } else if (skipped) {
       showReminderToast("No hay eventos nuevos. Los que eliminaste no vuelven.");
     } else {
@@ -2112,6 +2141,7 @@ function openEventForm(eventId) {
   renderAmountSelect(event ? event.amount : "");
   form.activityName.value = event?.activityName || "";
   form.notes.value = event?.notes || "";
+  fitNotesField(form.notes);
   document.getElementById("formTitle").textContent = event
     ? (jobNeedsCompletion(event) ? "Completar trabajo" : "Editar trabajo")
     : "Nuevo trabajo";
@@ -2126,6 +2156,17 @@ function openEventForm(eventId) {
   loadRemindersIntoForm(event);
   updateAmountHint();
   document.getElementById("overlay").classList.remove("hidden");
+  requestAnimationFrame(() => fitNotesField(form.notes));
+}
+
+function fitNotesField(textarea) {
+  if (!textarea) return;
+  if (window.CSS?.supports?.("field-sizing", "content")) {
+    textarea.style.height = "";
+    return;
+  }
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.max(textarea.scrollHeight, 136)}px`;
 }
 
 function closeEventForm() {
@@ -2484,6 +2525,7 @@ document.getElementById("periodControls").addEventListener("change", (event) => 
 });
 
 document.getElementById("eventForm").addEventListener("input", (event) => {
+  if (event.target.name === "notes") fitNotesField(event.target);
   if (["startDate", "endDate", "amount"].includes(event.target.name)) {
     updateAmountHint();
   }
@@ -2666,12 +2708,14 @@ startReminderWatch();
     renderGoogleCard();
     if (fromRedirect === "token") {
       const items = await AgendaGoogle.sync();
-      const { added } = applyImportedItems(items, false);
+      const { added, notesUpdated } = applyImportedItems(items, false);
       renderGoogleCard();
       showReminderToast(
         added
-          ? `Conectado. Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.`
-          : "Conectado. No había eventos nuevos."
+          ? `Conectado. Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.${notesUpdatedSuffix(notesUpdated)}`
+          : notesUpdated
+            ? `Conectado. Se completaron las notas de ${notesUpdated} trabajo${notesUpdated === 1 ? "" : "s"}.`
+            : "Conectado. No había eventos nuevos."
       );
       return;
     }

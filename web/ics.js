@@ -143,7 +143,7 @@ function parseEvent(body) {
   const title = icsUnescape(firstProp(props, "SUMMARY")?.value || "") || "Trabajo importado";
   const description = icsUnescape(firstProp(props, "DESCRIPTION")?.value || "");
   const location = icsUnescape(firstProp(props, "LOCATION")?.value || "");
-  const notes = [location, description].filter(Boolean).join("\n").slice(0, 500);
+  const notes = [location, description].filter(Boolean).join("\n");
   const uid = icsUnescape(firstProp(props, "UID")?.value || "");
   const exdates = new Set();
   allProps(props, "EXDATE").forEach((item) => {
