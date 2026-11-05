@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Agenda AV</title>
-  <link rel="manifest" href="manifest.webmanifest?v=gasto-mes" />
-  <link rel="stylesheet" href="styles.css?v=gasto-mes" />
+  <link rel="manifest" href="manifest.webmanifest?v=aprobados" />
+  <link rel="stylesheet" href="styles.css?v=aprobados" />
 </head>
 <body>
   <div class="phone">
@@ -118,6 +118,10 @@
       </section>
     </main>
 
+    <main id="approvedScreen" class="screen hidden">
+      <section class="card" id="approvedSummary"></section>
+    </main>
+
     <nav class="tabbar">
       <button type="button" class="tab active" data-tab="agenda">
         <span>📅</span> Agenda
@@ -127,6 +131,9 @@
       </button>
       <button type="button" class="tab" data-tab="budget">
         <span>📒</span> Presupuesto
+      </button>
+      <button type="button" class="tab" data-tab="approved">
+        <span>✅</span> Aprobados
       </button>
     </nav>
     <p class="app-credit">Esta app fue creada por Eliezer Cruz</p>
@@ -185,6 +192,13 @@
         <input type="text" name="amount" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="" aria-label="Otro monto" />
       </div>
       <p class="muted" id="amountHint"></p>
+      <p class="field-caption">Aprobación</p>
+      <p class="muted">Pendiente queda en la agenda. Aprobado entra en la pestaña Aprobados si la empresa es Audiovisualia.</p>
+      <div class="segmented" id="approvalPicker">
+        <button type="button" class="approve-btn active" data-approval="pending">Pendiente</button>
+        <button type="button" class="approve-btn" data-approval="approved">Aprobado</button>
+      </div>
+      <p class="field-caption">Cobro</p>
       <div class="segmented">
         <button type="button" class="pay-btn active" data-status="pending">Pendiente</button>
         <button type="button" class="pay-btn" data-status="paid">Pagado</button>
@@ -325,10 +339,10 @@
 
   <div id="reminderToast" class="reminder-toast hidden" role="status"></div>
   <div id="printRoot" class="print-root" hidden></div>
-  <script src="ics.js?v=gasto-mes"></script>
-  <script src="google.js?v=gasto-mes"></script>
-  <script src="pdf.js?v=gasto-mes"></script>
-  <script src="reminders.js?v=gasto-mes"></script>
-  <script src="app.js?v=gasto-mes"></script>
+  <script src="ics.js?v=aprobados"></script>
+  <script src="google.js?v=aprobados"></script>
+  <script src="pdf.js?v=aprobados"></script>
+  <script src="reminders.js?v=aprobados"></script>
+  <script src="app.js?v=no-reimport"></script>
 </body>
 </html>

@@ -27,6 +27,7 @@ const state = {
   selected: toISODate(new Date()),
   companies: [],
   events: [],
+  dismissedCalendarKeys: [],
   services: [],
   expenses: [],
   expensePaid: {},
@@ -34,6 +35,7 @@ const state = {
   editingExpenseId: null,
   editingId: null,
   paymentStatus: "pending",
+  approvalStatus: "pending",
   selectedCompanyId: null,
   selectedServiceIds: [],
   editingCompanyId: null,
@@ -317,6 +319,9 @@ function load() {
     const data = JSON.parse(raw);
     state.companies = (data.companies || []).map(normalizeCompany).filter(Boolean);
     state.events = data.events || [];
+    state.dismissedCalendarKeys = Array.isArray(data.dismissedCalendarKeys)
+      ? data.dismissedCalendarKeys.map((key) => String(key || "").trim()).filter(Boolean)
+      : [];
     state.services = data.services || [];
     state.expenses = (data.expenses || []).map(normalizeExpense).filter(Boolean);
     state.expensePaid = data.expensePaid && typeof data.expensePaid === "object" ? data.expensePaid : {};
@@ -331,6 +336,7 @@ function load() {
   state.events.forEach((event) => {
     event.reminders = AgendaReminders.normalizeReminders(event.reminders);
     event.activityName = event.activityName || "";
+    event.approvalStatus = event.approvalStatus === "approved" ? "approved" : "pending";
     event.startTime = normalizeTime(event.startTime);
     event.endTime = normalizeTime(event.endTime);
     event.icsUid = event.icsUid || "";
@@ -347,6 +353,7 @@ function persist() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     companies: state.companies,
     events: state.events,
+    dismissedCalendarKeys: state.dismissedCalendarKeys,
     services: state.services,
     expenses: state.expenses,
     expensePaid: state.expensePaid,
@@ -648,6 +655,73 @@ function eventServicesLabel(event) {
   return names.length ? names.join(", ") : (event.projectName || "");
 }
 
+function isAudiovisualiaCompany(company) {
+  return String(company?.name || "").toLowerCase().replace(/\s+/g, "").includes("audiovisualia");
+}
+
+function audiovisualiaCompanies() {
+  return state.companies.filter(isAudiovisualiaCompany);
+}
+
+function approvedAudiovisualiaEvents() {
+  const ids = new Set(audiovisualiaCompanies().map((company) => company.id));
+  return state.events
+    .filter((event) => event.approvalStatus === "approved" && ids.has(event.companyId))
+    .sort((a, b) => {
+      const byDate = String(a.startDate).localeCompare(String(b.startDate));
+      if (byDate) return byDate;
+      return String(a.startTime || "").localeCompare(String(b.startTime || ""));
+    });
+}
+
+function formatApprovedDate(event) {
+  const start = formatDate(parseISO(event.startDate), {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  if (event.endDate && event.endDate !== event.startDate) {
+    const end = formatDate(parseISO(event.endDate), {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+    return `${start} – ${end}`;
+  }
+  return start;
+}
+
+function renderApproved() {
+  const root = document.getElementById("approvedSummary");
+  if (!root) return;
+  const companies = audiovisualiaCompanies();
+  const companyName = companies.map((company) => company.name).join(", ") || "Audiovisualia";
+  const events = approvedAudiovisualiaEvents();
+  const cards = events.map((event) => {
+    const company = companyById(event.companyId);
+    const activity = (event.activityName || "").trim() || "Sin nombre de actividad";
+    const hours = formatJobHours(event);
+    const notes = (event.notes || "").trim();
+    return `
+      <button type="button" class="approved-card" data-edit="${event.id}" style="--c:${company?.color || "#84CC16"}">
+        <div class="muted">${escapeHtml(formatApprovedDate(event))}</div>
+        ${hours ? `<div class="muted">${escapeHtml(hours)}</div>` : ""}
+        <h3>${escapeHtml(activity)}</h3>
+        <div class="muted">Notas</div>
+        <p class="${notes ? "approval-note" : "muted"}">${notes ? escapeHtml(notes) : "Sin notas de equipos u otros datos."}</p>
+      </button>
+    `;
+  }).join("");
+  root.innerHTML = `
+    <h3 style="margin-top:0">${escapeHtml(companyName)}</h3>
+    <p class="muted">Resumen de los trabajos marcados como Aprobado. Cada uno muestra la fecha, el nombre de la actividad y las notas (equipos y otros datos del trabajo).</p>
+    ${events.length
+      ? `<p class="muted">${events.length} aprobado${events.length === 1 ? "" : "s"}</p>${cards}`
+      : `<div class="empty-state"><p>Todavía no hay trabajos aprobados. Al completar un trabajo de ${escapeHtml(companyName)}, elige Aprobado.</p></div>`}
+  `;
+}
+
 function eventTitle(event) {
   const activity = (event.activityName || "").trim();
   if (activity) return activity;
@@ -774,6 +848,7 @@ function renderDayPanel() {
           ${jobNeedsCompletion(event)
             ? `<span class="badge incomplete">Completar</span>`
             : `<span class="badge ${event.paymentStatus}">${event.paymentStatus === "paid" ? "Pagado" : "Pendiente"}</span>`}
+          ${event.approvalStatus === "approved" ? `<span class="badge approved">Aprobado</span>` : ""}
           ${event.reminders?.length ? `<span class="bell" title="Con recordatorio">🔔</span>` : ""}
         </div>
       </button>
@@ -969,15 +1044,27 @@ function icsEventKey(item) {
   return `${item.uid || item.title || "evento"}::${item.startDate}::${item.startTime || ""}`;
 }
 
+function rememberDismissedCalendar(key) {
+  const text = String(key || "").trim();
+  if (!text) return;
+  if (!Array.isArray(state.dismissedCalendarKeys)) state.dismissedCalendarKeys = [];
+  if (state.dismissedCalendarKeys.includes(text)) return;
+  state.dismissedCalendarKeys.push(text);
+  if (state.dismissedCalendarKeys.length > 4000) {
+    state.dismissedCalendarKeys = state.dismissedCalendarKeys.slice(-4000);
+  }
+}
+
 function importParsedItems(items) {
   const existing = new Set(state.events.map((event) => event.icsUid).filter(Boolean));
+  const dismissed = new Set(state.dismissedCalendarKeys || []);
   let added = 0;
   let skipped = 0;
   const created = [];
   for (const item of items) {
     if (!item?.startDate) continue;
     const key = icsEventKey(item);
-    if (existing.has(key)) {
+    if (existing.has(key) || dismissed.has(key)) {
       skipped += 1;
       continue;
     }
@@ -998,6 +1085,7 @@ function importParsedItems(items) {
       activityName: String(item.title || "Trabajo importado").slice(0, 80),
       amount: 0,
       paymentStatus: "pending",
+      approvalStatus: "pending",
       notes: String(item.notes || "").slice(0, 500),
       companyId: "",
       reminders: [],
@@ -1049,7 +1137,7 @@ async function importIcsFile(file) {
   if (added) {
     showReminderToast(`Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.`);
   } else if (skipped) {
-    showReminderToast("Esos eventos ya estaban en la agenda.");
+    showReminderToast("Esos eventos ya estaban, o los habías eliminado.");
   }
 }
 
@@ -1147,7 +1235,7 @@ async function syncGoogle(interactive) {
     if (added) {
       showReminderToast(`Se importaron ${added} trabajo${added === 1 ? "" : "s"}. Ábrelos y completa empresa, servicio y monto.`);
     } else if (skipped) {
-      showReminderToast("No hay eventos nuevos en Google.");
+      showReminderToast("No hay eventos nuevos. Los que eliminaste no vuelven.");
     } else {
       showReminderToast("No se encontraron eventos en Google Calendar.");
     }
@@ -2004,7 +2092,7 @@ function startReminderWatch() {
 
 function registerReminderWorker() {
   if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./sw.js?v=gasto-mes").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=aprobados").catch(() => {});
 }
 
 function openEventForm(eventId) {
@@ -2012,6 +2100,7 @@ function openEventForm(eventId) {
   const event = state.events.find((e) => e.id === eventId);
   state.editingId = eventId || null;
   state.paymentStatus = event?.paymentStatus || "pending";
+  state.approvalStatus = event?.approvalStatus === "approved" ? "approved" : "pending";
   state.selectedCompanyId = event?.companyId || "";
   state.selectedServiceIds = event
     ? eventServices(event).map((name) => rememberService(name)?.id).filter(Boolean)
@@ -2031,6 +2120,7 @@ function openEventForm(eventId) {
   document.getElementById("deleteEvent").classList.toggle("hidden", !event);
   document.getElementById("formError").classList.add("hidden");
   document.querySelectorAll(".pay-btn").forEach((b) => b.classList.toggle("active", b.dataset.status === state.paymentStatus));
+  document.querySelectorAll(".approve-btn").forEach((b) => b.classList.toggle("active", b.dataset.approval === state.approvalStatus));
   renderCompanySelect();
   renderServiceSelect();
   loadRemindersIntoForm(event);
@@ -2099,9 +2189,10 @@ function setTab(tab) {
   document.getElementById("agendaScreen").classList.toggle("hidden", tab !== "agenda");
   document.getElementById("reportsScreen").classList.toggle("hidden", tab !== "reports");
   document.getElementById("budgetScreen").classList.toggle("hidden", tab !== "budget");
-  const titles = { agenda: "Agenda", reports: "Reportes", budget: "Presupuesto" };
+  document.getElementById("approvedScreen").classList.toggle("hidden", tab !== "approved");
+  const titles = { agenda: "Agenda", reports: "Reportes", budget: "Presupuesto", approved: "Aprobados" };
   document.getElementById("screenTitle").textContent = titles[tab] || "Agenda";
-  document.getElementById("headerAction").classList.toggle("hidden", tab === "reports");
+  document.getElementById("headerAction").classList.toggle("hidden", tab === "reports" || tab === "approved");
   document.getElementById("headerAction").setAttribute(
     "aria-label",
     tab === "budget" ? "Agregar gasto fijo" : "Agendar nuevo trabajo"
@@ -2109,6 +2200,7 @@ function setTab(tab) {
   document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   if (tab === "reports") renderReports();
   if (tab === "budget") renderBudget();
+  if (tab === "approved") renderApproved();
 }
 
 function render() {
@@ -2116,6 +2208,7 @@ function render() {
   renderDayPanel();
   if (state.tab === "reports") renderReports();
   if (state.tab === "budget") renderBudget();
+  if (state.tab === "approved") renderApproved();
 }
 
 document.addEventListener("click", (event) => {
@@ -2339,6 +2432,13 @@ document.querySelectorAll(".pay-btn").forEach((btn) => {
   };
 });
 
+document.querySelectorAll(".approve-btn").forEach((btn) => {
+  btn.onclick = () => {
+    state.approvalStatus = btn.dataset.approval === "approved" ? "approved" : "pending";
+    document.querySelectorAll(".approve-btn").forEach((b) => b.classList.toggle("active", b === btn));
+  };
+});
+
 document.getElementById("kindPicker").addEventListener("click", (event) => {
   const btn = event.target.closest("[data-kind]");
   if (!btn) return;
@@ -2467,6 +2567,7 @@ document.getElementById("eventForm").onsubmit = async (event) => {
     activityName: form.activityName.value.trim(),
     amount,
     paymentStatus: state.paymentStatus,
+    approvalStatus: state.approvalStatus === "approved" ? "approved" : "pending",
     notes: form.notes.value.trim(),
     companyId: state.selectedCompanyId,
     reminders,
@@ -2491,6 +2592,8 @@ document.getElementById("eventForm").onsubmit = async (event) => {
 document.getElementById("deleteEvent").onclick = () => {
   if (!state.editingId) return;
   if (!confirm("¿Eliminar este trabajo?")) return;
+  const removed = state.events.find((event) => event.id === state.editingId);
+  if (removed?.icsUid) rememberDismissedCalendar(removed.icsUid);
   state.events = state.events.filter((e) => e.id !== state.editingId);
   persist();
   closeEventForm();
