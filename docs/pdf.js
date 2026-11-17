@@ -58,6 +58,10 @@ const InvoicePDF = {
     y -= 14;
     text(margin, y, 11, false, invoice.fromName || "Servicios audiovisuales freelance");
     y -= 13;
+    if (invoice.fromCedula) {
+      text(margin, y, 10, false, `Cedula: ${invoice.fromCedula}`);
+      y -= 13;
+    }
     if (invoice.fromPhone) {
       text(margin, y, 10, false, invoice.fromPhone);
       y -= 13;

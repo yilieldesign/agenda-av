@@ -245,9 +245,10 @@
         <select name="payCycle">
           <option value="15-30">El 15 y el 30</option>
           <option value="30">Solo el 30</option>
+          <option value="immediate">Pago inmediato</option>
         </select>
       </label>
-      <p class="muted">Si paga solo el 30, esos trabajos no salen en la quincena del 1 al 15; aparecen del 16 al fin de mes.</p>
+      <p class="muted">Solo el 30: no salen del 1 al 15; aparecen del 16 al fin de mes. Pago inmediato: salen en cuanto hay trabajo en el período.</p>
       <div class="row-actions">
         <button type="button" class="secondary" id="cancelCompany">Cancelar</button>
         <button type="submit" class="primary">Guardar</button>
@@ -341,8 +342,8 @@
   <div id="printRoot" class="print-root" hidden></div>
   <script src="ics.js?v=notas-completas"></script>
   <script src="google.js?v=notas-completas"></script>
-  <script src="pdf.js?v=aprobados"></script>
+  <script src="pdf.js?v=cedula"></script>
   <script src="reminders.js?v=aprobados"></script>
-  <script src="app.js?v=notas-completas"></script>
+  <script src="app.js?v=pago-inmediato"></script>
 </body>
 </html>

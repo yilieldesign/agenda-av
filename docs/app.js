@@ -587,24 +587,38 @@ function sortCatalog() {
   });
 }
 
+function normalizePayCycle(value) {
+  if (value === "30") return "30";
+  if (value === "immediate") return "immediate";
+  return "15-30";
+}
+
 function normalizeCompany(item) {
   if (!item || typeof item !== "object") return null;
   return {
     id: item.id || uid(),
     name: String(item.name || "").trim() || "Empresa",
     color: item.color || PALETTE[0],
-    payCycle: item.payCycle === "30" ? "30" : "15-30",
+    payCycle: normalizePayCycle(item.payCycle),
   };
 }
 
 function companyPayCycle(company) {
-  return company?.payCycle === "30" ? "30" : "15-30";
+  return normalizePayCycle(company?.payCycle);
 }
 
 function jobPayday(event) {
-  if (companyPayCycle(companyById(event?.companyId)) === "30") return 30;
+  const cycle = companyPayCycle(companyById(event?.companyId));
+  if (cycle === "immediate") return "immediate";
+  if (cycle === "30") return 30;
   const day = Number(String(event?.startDate || "").slice(8, 10));
   return day <= 15 ? 15 : 30;
+}
+
+function samePayday(event, payday) {
+  if (payday === null || payday === undefined || payday === "") return true;
+  if (payday === "immediate") return jobPayday(event) === "immediate";
+  return jobPayday(event) === Number(payday);
 }
 
 function paydayModeForReport() {
@@ -615,6 +629,9 @@ function paydayModeForReport() {
 
 function eventBillingWindow(event, start, end, paydayMode) {
   const cycle = companyPayCycle(companyById(event.companyId));
+  if (cycle === "immediate") {
+    return jobOverlapsRange(event, start, end) ? { start, end } : null;
+  }
   if (paydayMode === "firstHalf") {
     if (cycle === "30" || jobPayday(event) !== 15) return null;
     return jobOverlapsRange(event, start, end) ? { start, end } : null;
@@ -995,14 +1012,23 @@ function formatJobDateWithDays(event) {
   return `${formatJobDate(event)} (${daysLabel(eventDayCount(event))})${hours ? ` · ${hours}` : ""}`;
 }
 
+function formatDominicanCedula(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 10) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 10)}-${digits.slice(10)}`;
+}
+
 function loadProfile() {
   try {
-    return Object.assign(
-      { name: "", phone: "", payment: "" },
+    const profile = Object.assign(
+      { name: "", phone: "", cedula: "", payment: "" },
       JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}")
     );
+    profile.cedula = formatDominicanCedula(profile.cedula);
+    return profile;
   } catch {
-    return { name: "", phone: "", payment: "" };
+    return { name: "", phone: "", cedula: "", payment: "" };
   }
 }
 
@@ -1285,6 +1311,9 @@ function renderInvoiceProfile() {
     <label>Teléfono
       <input id="profilePhone" value="${escapeHtml(profile.phone)}" placeholder="Opcional">
     </label>
+    <label>Cédula
+      <input id="profileCedula" value="${escapeHtml(profile.cedula)}" inputmode="numeric" autocomplete="off" placeholder="000-0000000-0" maxlength="13">
+    </label>
     <label>Datos de pago
       <input id="profilePayment" value="${escapeHtml(profile.payment)}" placeholder="Banco, cuenta, Zelle, etc.">
     </label>
@@ -1300,7 +1329,7 @@ function companyRowsByStatus(summary, status, payday) {
     .map((company) => {
       const events = company.events.filter((event) => {
         if (event.paymentStatus !== status) return false;
-        if (payday) return jobPayday(event) === payday;
+        if (payday !== null && payday !== undefined && payday !== "") return samePayday(event, payday);
         return true;
       });
       return {
@@ -1316,11 +1345,14 @@ function companyRowsByStatus(summary, status, payday) {
 }
 
 function pendingPaydayGroups(summary) {
-  return [15, 30]
-    .map((day) => ({
-      day,
-      title: `Pendiente a cobrar el ${day}`,
-      companies: companyRowsByStatus(summary, "pending", day),
+  return [
+    { day: "immediate", title: "Pago inmediato" },
+    { day: 15, title: "Pendiente a cobrar el 15" },
+    { day: 30, title: "Pendiente a cobrar el 30" },
+  ]
+    .map((group) => ({
+      ...group,
+      companies: companyRowsByStatus(summary, "pending", group.day),
     }))
     .filter((group) => group.companies.length);
 }
@@ -1338,9 +1370,11 @@ function jobLinesHTML(events) {
 function companyCardHTML(company, mode) {
   const pending = mode === "pending";
   const paydayAttr = company.payday ? ` data-payday="${company.payday}"` : "";
-  const pendingLabel = company.payday
-    ? `Pendiente a cobrar el ${company.payday}`
-    : "Pendiente de pago";
+  const pendingLabel = company.payday === "immediate"
+    ? "Pago inmediato"
+    : company.payday
+      ? `Pendiente a cobrar el ${company.payday}`
+      : "Pendiente de pago";
   return `
     <article class="company-block-card">
       <div class="breakdown-row">
@@ -1374,7 +1408,7 @@ function companyPendingEvents(companyId, payday) {
   if (!company) return [];
   return company.events.filter((event) => {
     if (event.paymentStatus !== "pending") return false;
-    if (payday) return jobPayday(event) === Number(payday);
+    if (payday !== null && payday !== undefined && payday !== "") return samePayday(event, payday);
     return true;
   });
 }
@@ -1385,7 +1419,11 @@ function markCompanyPaid(companyId, payday) {
   if (!company) return;
   const pending = companyPendingEvents(companyId, payday);
   if (!pending.length) return;
-  const when = payday ? ` a cobrar el ${payday}` : "";
+  const when = payday === "immediate"
+    ? " de pago inmediato"
+    : payday
+      ? ` a cobrar el ${payday}`
+      : "";
   const label = pending.length === 1 ? "1 trabajo pendiente" : `${pending.length} trabajos pendientes`;
   const ok = window.confirm(
     `¿Marcar como pagados los ${label} de ${company.name}${when}?\n\nSalen de Pendiente y quedan en el historial.`
@@ -1411,6 +1449,7 @@ function companyInvoice(companyId, payday = state.activeInvoicePayday) {
     issued: formatDate(new Date(), { day: "numeric", month: "long", year: "numeric" }),
     fromName: profile.name || "Servicios audiovisuales freelance",
     fromPhone: profile.phone,
+    fromCedula: profile.cedula,
     paymentNote: profile.payment,
     companyName: company.name,
     period: formatRange(summary.start, summary.end),
@@ -1442,7 +1481,7 @@ function invoiceHTML(inv) {
   return `
     <h2>Reporte</h2>
     <p class="muted">${escapeHtml(inv.issued)}</p>
-    <p><strong>De:</strong> ${escapeHtml(inv.fromName)}${inv.fromPhone ? ` · ${escapeHtml(inv.fromPhone)}` : ""}</p>
+    <p><strong>De:</strong> ${escapeHtml(inv.fromName)}${inv.fromCedula ? ` · Cédula ${escapeHtml(inv.fromCedula)}` : ""}${inv.fromPhone ? ` · ${escapeHtml(inv.fromPhone)}` : ""}</p>
     <p><strong>Para:</strong> ${escapeHtml(inv.companyName)}</p>
     <p><strong>Período:</strong> ${escapeHtml(inv.period)}</p>
     <table>
@@ -1595,7 +1634,7 @@ function renderReports() {
 
   const pendingGroups = pendingPaydayGroups(summary);
   const paidCompanies = companyRowsByStatus(summary, "paid");
-  const pendingIntro = `<p class="muted">Aquí solo salen los cobros que faltan. Las empresas que pagan solo el 30 no salen del 1 al 15; aparecen del 16 al fin de mes. Cuando te paguen, usa Pago por empresa.</p>`;
+  const pendingIntro = `<p class="muted">Aquí solo salen los cobros que faltan. Solo el 30 no sale del 1 al 15. Pago inmediato aparece en cuanto hay trabajo en el período. Cuando te paguen, usa Pago por empresa.</p>`;
   document.getElementById("companyBreakdown").innerHTML = pendingGroups.length
     ? pendingIntro + pendingGroups.map((group) => `
         <h3>${escapeHtml(group.title)}</h3>
@@ -2449,10 +2488,16 @@ document.getElementById("goAgendaGoogle")?.addEventListener("click", () => {
   setTab("agenda");
   document.getElementById("googleCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
 });
-document.getElementById("invoiceProfileCard").addEventListener("input", () => {
+document.getElementById("invoiceProfileCard").addEventListener("input", (event) => {
+  const cedulaInput = document.getElementById("profileCedula");
+  if (event.target === cedulaInput && cedulaInput) {
+    const formatted = formatDominicanCedula(cedulaInput.value);
+    if (cedulaInput.value !== formatted) cedulaInput.value = formatted;
+  }
   saveProfile({
     name: document.getElementById("profileName")?.value.trim() || "",
     phone: document.getElementById("profilePhone")?.value.trim() || "",
+    cedula: formatDominicanCedula(document.getElementById("profileCedula")?.value || ""),
     payment: document.getElementById("profilePayment")?.value.trim() || "",
   });
   applyUserName();
@@ -2646,7 +2691,7 @@ document.getElementById("companyForm").onsubmit = (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const name = form.name.value.trim();
-  const payCycle = form.payCycle.value === "30" ? "30" : "15-30";
+  const payCycle = normalizePayCycle(form.payCycle.value);
   if (!name) return;
   if (state.editingCompanyId) {
     state.companies = state.companies.map((c) => c.id === state.editingCompanyId ? { ...c, name, color: form.color.value, payCycle } : c);
